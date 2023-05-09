@@ -14,11 +14,13 @@ data Type = JavaInt
               | JavaString
               | JavaObject {
                                 className :: String,      -- the name of the class
-                                superclassName :: Maybe String -- the name of the superclass, if any
-                                implementsInterface :: [Maybe String]
+                                superclassName :: Maybe String, -- the name of the superclass, if any
+                                implementsInterface :: [(Maybe String)],
+                                fields :: [(String, Type)] -- fields of the class
                               }
               | JavaArray Type Int -- array Type and Length
-  deriving Eq
+              | javaNull
+  deriving (Eq, Show)
 
 data Expr
   = IntE Integer
@@ -29,7 +31,7 @@ data Expr
   | BoolE Bool
   | StringE String
   | NullE
-  | VarE String -- Var Name
+  | VarE String Expr -- Var Name Value
   | ArrayAccessE Expr Expr  -- Array Index
   | ArrayLengthE Expr -- Array
   | FieldAccessE Expr String  -- Object FieldName
@@ -73,7 +75,7 @@ data UnaryOp
 
 
 example :: Expr
-example = App (Abs "x" NumT (Plus (Ident "x") (Ident "x"))) (Num 21)
+example = StringE "69"
 
 
 path = "/example"

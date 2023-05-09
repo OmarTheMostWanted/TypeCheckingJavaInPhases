@@ -11,8 +11,8 @@ runTCTest :: Expr -> IO (Type, Graph Label Decl)
 runTCTest = either assertFailure return . runTC
 
 -- Define your test cases like the following
-testApplicationPlus :: IO ()
-testApplicationPlus = do
+testInt :: IO ()
+testInt = do
   t <- runTCTest $ App (Abs "x" NumT (Plus (Ident "x") (Ident "x"))) (Num 21)
   assertEqual "Incorrect type" NumT $ fst t
 

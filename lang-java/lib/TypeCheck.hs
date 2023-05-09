@@ -67,38 +67,51 @@ tc :: ( Functor f
       )
    => Expr -> Sc -> Free f Type
 
-tc (Num _) _ = return NumT
-tc (Plus e1 e2) sc = do
-  t1 <- tc e1 sc
-  t2 <- tc e2 sc
-  case (t1, t2) of
-    (NumT, NumT) -> return NumT
-    (t1', NumT)  -> err $ "Expected left operand of plus expression to have type 'num', got '" ++ 
-                          show t1' ++ "'"
-    (NumT, t2')  -> err $ "Expected right operand of plus expression to have type 'num', got '" ++ 
-                          show t2' ++ "'"
-    (t1', t2')   -> err $ "Expected operands of plus expression to have type 'num', got '" ++ 
-                          show t1' ++ "' and '" ++
-                          show t2' ++ "'"
-tc (App e1 e2) sc = do
-  t1 <- tc e1 sc
-  t2 <- tc e2 sc
-  case t1 of
-    (FunT t t') | t == t2 -> return t'
-    (FunT t _)            -> err $ "Expected argument of type '" ++ show t ++ "' got '" ++ show t2 ++ "'"
-    t                     -> err $ "Expected arrow type, got '" ++ show t ++ "'"
-tc (Abs x t e) s = do
-  s' <- new
-  edge s' P s
-  sink s' D $ Decl x t
-  t' <- tc e s'
-  return $ FunT t t'
-tc (Ident x) s = do
-  ds <- query s re pShortest (matchDecl x) <&> map projTy
-  case ds of
-    []  -> err "No matching declarations found"
-    [t] -> return t
-    _   -> err "BUG: Multiple declarations found" -- cannot happen for STLC
+tc (IntE _) _ = return JavaInt
+tc (LongE _) _ = return JavaLong
+tc (FloatE _) _ = return JavaFloat
+tc (DoubleE _) _ = return JavaDouble
+tc (CharE _) _ = return JavaChar
+tc (BoolE _) _ = return JavaBoolean
+tc (StringE _) _ = return JavaString
+tc (NullE) _ = return JavaNull
+tc (VarE name var) s = do
+  tc var s
+
+tc _ _ = err "not implimented"
+--
+--tc (Num _) _ = return NumT
+--tc (Plus e1 e2) sc = do
+--  t1 <- tc e1 sc
+--  t2 <- tc e2 sc
+--  case (t1, t2) of
+--    (NumT, NumT) -> return NumT
+--    (t1', NumT)  -> err $ "Expected left operand of plus expression to have type 'num', got '" ++
+--                          show t1' ++ "'"
+--    (NumT, t2')  -> err $ "Expected right operand of plus expression to have type 'num', got '" ++
+--                          show t2' ++ "'"
+--    (t1', t2')   -> err $ "Expected operands of plus expression to have type 'num', got '" ++
+--                          show t1' ++ "' and '" ++
+--                          show t2' ++ "'"
+--tc (App e1 e2) sc = do
+--  t1 <- tc e1 sc
+--  t2 <- tc e2 sc
+--  case t1 of
+--    (FunT t t') | t == t2 -> return t'
+--    (FunT t _)            -> err $ "Expected argument of type '" ++ show t ++ "' got '" ++ show t2 ++ "'"
+--    t                     -> err $ "Expected arrow type, got '" ++ show t ++ "'"
+--tc (Abs x t e) s = do
+--  s' <- new
+--  edge s' P s
+--  sink s' D $ Decl x t
+--  t' <- tc e s'
+--  return $ FunT t t'
+--tc (Ident x) s = do
+--  ds <- query s re pShortest (matchDecl x) <&> map projTy
+--  case ds of
+--    []  -> err "No matching declarations found"
+--    [t] -> return t
+--    _   -> err "BUG: Multiple declarations found" -- cannot happen for STLC
 
 
 -- Tie it all together
