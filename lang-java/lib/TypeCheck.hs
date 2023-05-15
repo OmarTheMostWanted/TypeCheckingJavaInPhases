@@ -9,6 +9,8 @@ import qualified Free.Scope as S (edge, new, sink)
 import Free.Error
 import Syntax
 
+import Free.Logic.Exists
+
 ----------------------------
 -- Scope Graph Parameters --
 ----------------------------
@@ -75,8 +77,20 @@ tc (CharE _) _ = return JavaChar
 tc (BoolE _) _ = return JavaBoolean
 tc (StringE _) _ = return JavaString
 tc (NullE) _ = return JavaNull
-tc (VarE name var) s = do
-  tc var s
+tc (DeclarationE name t e) sc = do
+  sc' <- new
+  edge sc' P sc
+  sink sc' D $ Decl name t
+  t' <- tc e sc'
+  if (t == t') then return t' else err "Type missmatch."
+
+tc (VarE name var) sc = do
+  sc' <- new
+  edge sc' P sc
+  t <- tc var sc'
+  sink sc' D $ Decl name t
+  return t
+
 
 tc _ _ = err "not implimented"
 --
@@ -109,7 +123,7 @@ tc _ _ = err "not implimented"
 --tc (Ident x) s = do
 --  ds <- query s re pShortest (matchDecl x) <&> map projTy
 --  case ds of
---    []  -> err "No matching declarations found"
+--    []  -> err "No matching declarations fou  nd"
 --    [t] -> return t
 --    _   -> err "BUG: Multiple declarations found" -- cannot happen for STLC
 

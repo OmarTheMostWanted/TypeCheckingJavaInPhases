@@ -10,11 +10,11 @@ import Free.Scope (Graph)
 runTCTest :: Expr -> IO (Type, Graph Label Decl) 
 runTCTest = either assertFailure return . runTC
 
--- Define your test cases like the following
-testInt :: IO ()
-testInt = do
-  t <- runTCTest $ App (Abs "x" NumT (Plus (Ident "x") (Ident "x"))) (Num 21)
-  assertEqual "Incorrect type" NumT $ fst t
+---- Define your test cases like the following
+--testInt :: IO ()
+--testInt = do
+--  t <- runTCTest $ App (Abs "x" NumT (Plus (Ident "x") (Ident "x"))) (Num 21)
+--  assertEqual "Incorrect type" NumT $ fst t
 
 tests :: Test
 tests = TestList

@@ -5,6 +5,9 @@ import qualified ATerms.Parser as P
 import GHC.Read (readField)
 
 
+-- what about keywords like public private .this static and so on
+-- how would the in line words look like
+
 data Type = JavaInt
               | JavaLong
               | JavaFloat
@@ -12,6 +15,7 @@ data Type = JavaInt
               | JavaChar
               | JavaBoolean
               | JavaString
+              | JavaNull
               | JavaObject {
                                 className :: String,      -- the name of the class
                                 superclassName :: Maybe String, -- the name of the superclass, if any
@@ -19,7 +23,6 @@ data Type = JavaInt
                                 fields :: [(String, Type)] -- fields of the class
                               }
               | JavaArray Type Int -- array Type and Length
-              | javaNull
   deriving (Eq, Show)
 
 data Expr
@@ -31,7 +34,8 @@ data Expr
   | BoolE Bool
   | StringE String
   | NullE
-  | VarE String Expr -- Var Name Value
+  | DeclarationE String Type Expr -- declaring a var with type  { string x = "name"; }
+  | VarE String Expr -- Var Name Value with inferred type
   | ArrayAccessE Expr Expr  -- Array Index
   | ArrayLengthE Expr -- Array
   | FieldAccessE Expr String  -- Object FieldName
@@ -75,7 +79,7 @@ data UnaryOp
 
 
 example :: Expr
-example = StringE "69"
+example = DeclarationE "aString" JavaString (StringE "69")
 
 
 path = "/example"
