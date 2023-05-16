@@ -77,12 +77,15 @@ tc (CharE _) _ = return JavaChar
 tc (BoolE _) _ = return JavaBoolean
 tc (StringE _) _ = return JavaString
 tc (NullE) _ = return JavaNull
-tc (DeclarationE name t e) sc = do
+tc (DeclarationE name t e) sc = do -- no new scope for fields, only  new scope when (object decla)
   sc' <- new
   edge sc' P sc
   sink sc' D $ Decl name t
   t' <- tc e sc'
   if (t == t') then return t' else err "Type missmatch."
+
+tc (RefE name) sc = do
+
 
 tc (VarE name var) sc = do
   sc' <- new
@@ -90,6 +93,14 @@ tc (VarE name var) sc = do
   t <- tc var sc'
   sink sc' D $ Decl name t
   return t
+
+--tc (NewObjectE name (e:es)) sc = do
+--  sc' <- new
+--  edge sc' P sc
+--  t <- tc e sc'
+--  case (t) of =
+--    (DeclarationE name typeE ed) =
+--
 
 
 tc _ _ = err "not implimented"
