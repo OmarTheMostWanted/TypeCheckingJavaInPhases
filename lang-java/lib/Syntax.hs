@@ -9,6 +9,8 @@ import GHC.Read (readField)
 -- how would the in line words look like
 -- should I seperate class dec and object instances?
 
+
+-- minimal java code, fields are always public for now
 data Type = JavaInt
               | JavaLong
               | JavaFloat
@@ -17,16 +19,21 @@ data Type = JavaInt
               | JavaBoolean
               | JavaString
               | JavaNull
-              | JavaMethod String [Type] Type -- method name params return
-              | JavaVoid -- used for returning void
-              | JavaObject {
-                                className :: String,      -- the name of the class
-                                superclassName :: Maybe String, -- the name of the superclass, if any
-                                implementsInterface :: [(Maybe String)],
-                                fields :: [(String, Type)] -- fields of the class
-                                methods :: [(String , JavaMethod)]
-                              }
-              | JavaArray Type Int -- array Type and Length
+              | JavaClass {
+                name :: String,
+              }
+                -- fields :: [(String, Type)],
+                -- methods :: [(String, JavaMethod)]
+                -- }
+              | JavaMethod {
+                name :: String,
+                args :: [(String , Type)],
+                returnT :: Maybe Type
+                }
+              | JavaArray {
+                elementType :: Type,
+                length :: Int
+              }
   deriving (Eq, Show)
 
 data Expr
@@ -38,53 +45,46 @@ data Expr
   | BoolE Bool
   | StringE String
   | NullE
-  | ImportE String -- or JavaObject ?????
-  | DeclarationE String Type Expr -- declaring a var with type  { string x = "name"; }
-  | VarE String Expr -- Var Name Value with inferred type
-  | ArrayAccessE Expr Expr  -- Array Index
-  | ArrayLengthE Expr -- Array
-  | FieldAccessE Expr String  -- Object FieldName
-  | MethodCallE Expr String [Expr]  -- Object MethodName Args
-  | ClassDeclarationE String Expr [Expr] [Expr] [Expr] -- ClassName Super interfaces Fields methods
-  | NewArrayE Expr [Expr] --ArrayLength Elements
-  | CastE String Expr
-  | InstanceOfE Expr String
-  | BinaryOpE BinaryOp Expr Expr
-  | UnaryOpE UnaryOp Expr
-  | TernaryOpE Expr Expr Expr
-  | AssignmentE Expr Expr
-  deriving (Eq, Show)
-
-data BinaryOp
-  = AddOp -- +
-  | SubOp -- -
-  | MulOp -- *
-  | DivOp -- /
-  | ModOp -- %
-  | LTOp  -- <
-  | LEOp  -- <=
-  | GTOp  -- >
-  | GEOp  -- >=
-  | EQOp  -- ==
-  | NEOp  -- !=
-  | AndOp -- &&
-  | OrOp -- ||
-  | BitAndOp  -- &
-  | BitOrOp --  |
-  | BitXorOp  --  ^
-  | LeftShiftOp --  <
-  | RightShiftOp  --  >
-  | UnsignedRightShiftOp -- <
-  deriving (Eq, Show)
-
-data UnaryOp
-  = NegativeOp -- -
-  | NotOp -- !
+  | FieldE {
+    name :: String,
+    fieldT :: Type,
+    value :: Expr
+  }
+  | MethodE {
+    name :: String,
+    args :: [(String, Type)],
+    returnT :: Maybe Type, -- nothing for void
+    body :: Expr
+  }
+  | ClassE {
+    className :: String,
+    fields :: [FieldE],
+    methods :: [MethodE]
+  }
+  | DeclarationInitE { --static delarations
+    name :: String,
+    typeVar :: Type,
+    value :: Expr
+  }
+  | DeclarationE {  --static delarations
+    name :: String,
+    typeVar :: Type,
+  }
+  | AssigmentE {
+    name :: String, -- var to assign to
+    value :: Expr -- value
+  }
+  | ReferenceE String -- referencing a variable
+  | MethodCall {
+    objReference :: String, -- class instance Name (non static)
+    methodName :: String, -- method name
+    args :: [Expr] -- args
+  }
   deriving (Eq, Show)
 
 
 example :: Expr
-example = DeclarationE "aString" JavaString (StringE "69")
+example = DeclarationInitE "aString" JavaString (StringE "69")
 
 
 path = "/example"

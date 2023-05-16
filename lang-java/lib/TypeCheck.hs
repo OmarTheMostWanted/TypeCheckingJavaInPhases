@@ -18,18 +18,23 @@ import Free.Logic.Exists
 data Label
   = P -- Lexical Parent Label
   | D -- Declaration
+  | I -- Import
   deriving (Show, Eq)
 
 data Decl
-  = Decl String Type   -- Variable declaration
-  deriving (Eq)
+  = VarDecl String Type   -- Variable declaration
+  = FieldDecl Sting Type
+  = ClassDecl String
+  = MethodDecl String [Type] Type
+  deriving (Show, Eq)
 
 
-instance Show Decl where
-  show (Decl x t) = x ++ " : " ++ show t
 
 projTy :: Decl -> Type
-projTy (Decl _ t) = t
+projTy (VarDecl _ t) = t
+projTy (FieldDecl _ t) = t
+projTy (ClassDecl _ ) = t
+projTy (MethodDecl _ _ t) = t
 
 -- Scope Graph Library Convenience
 edge :: Scope Sc Label Decl < f => Sc -> Label -> Sc -> Free f ()
@@ -51,7 +56,10 @@ pShortest p1 p2 = lenRPath p1 < lenRPath p2
 
 -- Match declaration with particular name
 matchDecl :: String -> Decl -> Bool
-matchDecl x (Decl x' _) = x == x'
+matchDecl x (VarDecl x' _) = x == x'
+matchDecl x (FieldDecl x' _) = x == x'
+matchDecl x (ClassDecl x') = x == x'
+matchDecl x (MethodDecl x' _ _ _) x == x'
 
 ------------------
 -- Type Checker --
@@ -77,66 +85,66 @@ tc (CharE _) _ = return JavaChar
 tc (BoolE _) _ = return JavaBoolean
 tc (StringE _) _ = return JavaString
 tc (NullE) _ = return JavaNull
-tc (DeclarationE name t e) sc = do -- no new scope for fields, only  new scope when (object decla)
-  sc' <- new
-  edge sc' P sc
-  sink sc' D $ Decl name t
-  t' <- tc e sc'
-  if (t == t') then return t' else err "Type missmatch."
+tc (FieldE name fieldT value) sc = do
+  sink sc D $ FieldDecl name fieldT
+  t' <- tc value sc -- need to check
+  return <- fieldT 
+-- tc (MethodE name args returnT body) sc = 
+--   case (returnT) of 
+--     (Just rt ) -> do
+--       methodScope <- new
+--       sink sc D $ MethodDecl name [t | ( _ , t) <- args] rt
+--       [sink methodScope D $ VarDecl nameArg typeArg | (nameArg, typeArg) <- args ]
+--       edge methodScope P sc
+--       t' <- tc body methodScope
+--       return rt
+--     Nothing -> do
+--       methodScope <- new
+--       sink sc D $ MethodDecl name [t | ( _ , t) <- args] (pure)
+--       [sink methodScope D $ VarDecl nameArg typeArg | (nameArg, typeArg) <- args ]
+--       edge methodScope P sc
+--       t' <- tc body methodScope
+--       pure
+tc (MethodE name args returnT body) sc = do 
+  methodScope <- new
+  sink sc D $ MethodDecl name [t | ( _ , t) <- args] rt
+  [sink methodScope D $ VarDecl nameArg typeArg | (nameArg, typeArg) <- args ]
+  edge methodScope P sc
+  t' <- tc body methodScope -- need to validate
+  return $ JavaMethod name args returnT
 
-tc (RefE name) sc = do
+tc (ClassE name fields methods) sc = do
+  sink sc D $ ClassDecl name
+  classScope <- new
+  edge classScope P sc
+  [tc f classScope | f <- fields]
+  [tc m classScope | m <- methods]
+  return $ JavaClass name
 
+tc (DeclarationInitE name typeVar value) sc = do
+    sink sc D $ VarDecl name typeVar
+    t' <- tc value sc -- need to check
+    return typeVar
 
-tc (VarE name var) sc = do
-  sc' <- new
-  edge sc' P sc
-  t <- tc var sc'
-  sink sc' D $ Decl name t
-  return t
+tc (DeclarationE name typeVar) sc = do
+  sink sc D $ VarDecl name typeVar
+  return typeVar
 
---tc (NewObjectE name (e:es)) sc = do
---  sc' <- new
---  edge sc' P sc
---  t <- tc e sc'
---  case (t) of =
---    (DeclarationE name typeE ed) =
---
+tc (AssigmentE name value) sc = do
+  x <- query sc re pShortest (matchDecl x) <&> map projTy
+  actual <- tc value sc
+  if x == actual then return x else err $ "Trying to assign" ++ actual " to " ++ actual
 
+tc (ReferenceE name) sc = do
+  x <- query sc re pShortest (matchDecl x) <&> map projTy
+  return x
+
+-- tc (MethodCall objReference methodName args) sc = do
+--   c <- query sc re pShortest (matchDecl c) <$> map projTy
+--   -- how do I get the scope of the instance c, to check in the method actually exsists??
 
 tc _ _ = err "not implimented"
---
---tc (Num _) _ = return NumT
---tc (Plus e1 e2) sc = do
---  t1 <- tc e1 sc
---  t2 <- tc e2 sc
---  case (t1, t2) of
---    (NumT, NumT) -> return NumT
---    (t1', NumT)  -> err $ "Expected left operand of plus expression to have type 'num', got '" ++
---                          show t1' ++ "'"
---    (NumT, t2')  -> err $ "Expected right operand of plus expression to have type 'num', got '" ++
---                          show t2' ++ "'"
---    (t1', t2')   -> err $ "Expected operands of plus expression to have type 'num', got '" ++
---                          show t1' ++ "' and '" ++
---                          show t2' ++ "'"
---tc (App e1 e2) sc = do
---  t1 <- tc e1 sc
---  t2 <- tc e2 sc
---  case t1 of
---    (FunT t t') | t == t2 -> return t'
---    (FunT t _)            -> err $ "Expected argument of type '" ++ show t ++ "' got '" ++ show t2 ++ "'"
---    t                     -> err $ "Expected arrow type, got '" ++ show t ++ "'"
---tc (Abs x t e) s = do
---  s' <- new
---  edge s' P s
---  sink s' D $ Decl x t
---  t' <- tc e s'
---  return $ FunT t t'
---tc (Ident x) s = do
---  ds <- query s re pShortest (matchDecl x) <&> map projTy
---  case ds of
---    []  -> err "No matching declarations fou  nd"
---    [t] -> return t
---    _   -> err "BUG: Multiple declarations found" -- cannot happen for STLC
+
 
 
 -- Tie it all together
