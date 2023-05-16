@@ -24,8 +24,8 @@ data Label
 data Decl
   = VarDecl String Type   -- Variable declaration
   = FieldDecl Sting Type
-  = ClassDecl String
-  = MethodDecl String [Type] Type
+  = ClassDecl String Bool
+  = MethodDecl String [Type] Type Bool
   deriving (Show, Eq)
 
 
@@ -33,8 +33,8 @@ data Decl
 projTy :: Decl -> Type
 projTy (VarDecl _ t) = t
 projTy (FieldDecl _ t) = t
-projTy (ClassDecl _ ) = t
-projTy (MethodDecl _ _ t) = t
+projTy (ClassDecl n s) = (JavaClass n s)
+projTy (MethodDecl n args rt s) = (JavaMethod n args rt s)
 
 -- Scope Graph Library Convenience
 edge :: Scope Sc Label Decl < f => Sc -> Label -> Sc -> Free f ()
@@ -58,8 +58,8 @@ pShortest p1 p2 = lenRPath p1 < lenRPath p2
 matchDecl :: String -> Decl -> Bool
 matchDecl x (VarDecl x' _) = x == x'
 matchDecl x (FieldDecl x' _) = x == x'
-matchDecl x (ClassDecl x') = x == x'
-matchDecl x (MethodDecl x' _ _ _) x == x'
+matchDecl x (ClassDecl x' _) = x == x'
+matchDecl x (MethodDecl x' _ _ _ ) x == x'
 
 ------------------
 -- Type Checker --
@@ -105,16 +105,16 @@ tc (FieldE name fieldT value) sc = do
 --       edge methodScope P sc
 --       t' <- tc body methodScope
 --       pure
-tc (MethodE name args returnT body) sc = do 
+tc (MethodE name args returnT body s) sc = do
   methodScope <- new
-  sink sc D $ MethodDecl name [t | ( _ , t) <- args] rt
+  sink sc D $ MethodDecl name [t | ( _ , t) <- args] rt s
   [sink methodScope D $ VarDecl nameArg typeArg | (nameArg, typeArg) <- args ]
   edge methodScope P sc
   t' <- tc body methodScope -- need to validate
-  return $ JavaMethod name args returnT
+  return $ JavaMethod name args returnT s
 
-tc (ClassE name fields methods) sc = do
-  sink sc D $ ClassDecl name
+tc (ClassE name fields methods static s) sc = do
+  sink sc D $ ClassDecl name s
   classScope <- new
   edge classScope P sc
   [tc f classScope | f <- fields]
@@ -139,9 +139,19 @@ tc (ReferenceE name) sc = do
   x <- query sc re pShortest (matchDecl x) <&> map projTy
   return x
 
--- tc (MethodCall objReference methodName args) sc = do
---   c <- query sc re pShortest (matchDecl c) <$> map projTy
---   -- how do I get the scope of the instance c, to check in the method actually exsists??
+tc (MethodCall objReference methodName args) sc = do
+  c <- query sc re pShortest (matchDecl c) <$> map projTy
+   -- how do I get the scope of the instance c, to check in the method actually exsists??
+
+tc (NewE name args) sc = do
+  objectScope <- scope
+  edge objectScope P sc
+  x <- query sc re pShortest (matchDecl x) <&> map projTy -- I need to somehow find a class deleration inroder to extract the constructor
+  case x of
+    (JavaClass n False) -> return x
+    (JavaClass n True) -> $ err "class " ++ n " is static"
+
+  
 
 tc _ _ = err "not implimented"
 
