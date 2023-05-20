@@ -47,6 +47,9 @@ data Type = JavaInt
               | JavaObject {
                 instanceOf :: Type
               }
+              | JavaEmpty -- I don't know if this is the way to return Nothing
+
+
   deriving (Eq, Show)
 
 data Expr

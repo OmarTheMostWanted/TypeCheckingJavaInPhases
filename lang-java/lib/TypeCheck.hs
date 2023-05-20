@@ -47,8 +47,8 @@ data Decl
 projTy :: Decl -> Type
 projTy (VarDecl _ t) = t
 projTy (FieldDecl _ t) = t
-projTy (ClassDecl n f m s c) = (JavaClass n s c)
-projTy (MethodDecl n args rt s) = (JavaMethod n args rt s)
+projTy (ClassDecl n _ _ s c) = JavaClass n s c
+projTy (MethodDecl n args rt s) = JavaMethod n args rt s
 
 -- Scope Graph Library Convenience
 edge :: Scope Sc Label Decl < f => Sc -> Label -> Sc -> Free f ()
@@ -79,6 +79,25 @@ matchDecl x (MethodDecl x' _ _ _ ) = x == x'
 -- Type Checker --
 ------------------
 
+tcJava :: ( Functor f
+      -- List of 'capabilities' of type checker
+      -- No need for inference: Disable parts related to first-order unification and generalization
+      -- , Exists Type < f                   -- Introduce new meta-variables
+      -- , Equals Type < f                   -- First-order unification
+      -- , Generalize [Int] Type < f         -- HM-style generalization
+      , Error String < f                  -- Emit String errors
+      , Scope Sc Label Decl < f           -- Scope graph operations
+      )
+   => [Expr] -> Sc -> Free f Type
+
+tcJava [] _ = return JavaEmpty
+
+tcJava (e:es) sc = do
+  tc e sc
+  tcJava es sc
+
+
+
 -- Function that handles each language construct
 tc :: ( Functor f
       -- List of 'capabilities' of type checker
@@ -98,12 +117,12 @@ tc (DoubleE _) _ = return JavaDouble
 tc (CharE _) _ = return JavaChar
 tc (BoolE _) _ = return JavaBoolean
 tc (StringE _) _ = return JavaString
-tc (NullE) _ = return JavaNull
+tc NullE _ = return JavaNull
 
 tc (FieldE name fieldT value) sc = do
   sink sc D $ FieldDecl name fieldT
   t' <- tc value sc
-  return fieldT 
+  if t'== fieldT then  return fieldT else err "Field type missmatch" 
 
 tc (MethodE name args returnT body s) sc = do
   methodScope <- new
@@ -111,8 +130,10 @@ tc (MethodE name args returnT body s) sc = do
   addSinksForAllMethodArgs args methodScope
   edge methodScope P sc
   t' <- tc body methodScope -- TODO need to validate
-  return $ JavaMethod name args returnT s
-
+  case returnT of
+    Nothing -> if t' == JavaEmpty then return $ JavaMethod name args returnT s else err "Method declared void but returns something"
+    Just rt ->  if t'== rt then  return $ JavaMethod name args returnT s else err "Return type missmatch" 
+  
 tc (ClassE name fields methods static const) sc = do -- TODO make sure fields and methods are actually fields and methods 
   sink sc D $ ClassDecl name fields methods static const
   classScope <- new
@@ -133,7 +154,7 @@ tc (DeclarationE name typeVar) sc = do
 tc (AssigmentE name value) sc = do
   x <- query sc re pShortest (matchDecl name) <&> map projTy
   actual <- tc value sc
-  if (head x) == actual then return actual else err "Type missmatch"
+  if head x == actual then return actual else err "Type missmatch"
 
 tc (ReferenceE name) sc = do
   x <- query sc re pShortest (matchDecl name) <&> map projTy
@@ -148,17 +169,17 @@ tc (NewE name args) sc = do
 
   case x of
     [] -> err "No definiton found"
-    [(ClassDecl n f m s cons)] -> 
+    [ClassDecl n _ _ s cons] -> 
       if s then err $ "Trying to estensiat a static class " ++ n
       else case cons of
-        (Just []) -> if args == [] then return $ JavaObject (JavaClass n s cons) -- no constructor so use the inherited constructor
-          else err $ "Arguemnt Number missmatch"
+        (Just []) -> if null args then return $ JavaObject (JavaClass n s cons) -- no constructor so use the inherited constructor
+          else err "Arguemnt Number missmatch"
         (Just constructors) ->
           if typeCheckConsArgs constructors types
             then return $ JavaObject (JavaClass n s cons)
-            else err $ "Didn't find the constructor for the provided args"
-        (Nothing) -> return $ JavaObject (JavaClass n s cons) -- use defualt constructor ? or error
-
+            else err "Didn't find the constructor for the provided args"
+        Nothing -> return $ JavaObject (JavaClass n s cons) -- use defualt constructor ? or error
+    _ -> err "Trying to estensiat a none class type"
 
 
 tc _ _ = err "not implimented"
@@ -168,6 +189,7 @@ addSinksForAllMethodArgs :: ( Functor f
       , Scope Sc Label Decl < f           -- Scope graph operations
       )
    => [(String, Type)] -> Sc -> Free f Type
+addSinksForAllMethodArgs [] _ = return JavaEmpty
 addSinksForAllMethodArgs ((name , t):args) scope = do
   sink scope D $ VarDecl name t
   addSinksForAllMethodArgs args scope
@@ -177,25 +199,30 @@ addSinksForFields :: ( Functor f
       , Scope Sc Label Decl < f           -- Scope graph operations
       )
     => [Expr] -> Sc -> Free f Type
+
+addSinksForFields [] _ = return JavaEmpty
 addSinksForFields ((FieldE name t e):fs) scope = do
   tc (FieldE name t e) scope
   addSinksForFields fs scope
+addSinksForFields _ _ = do
+  err "not a field expression"
 
 addSinksForMethods :: ( Functor f
       , Error String < f                  -- Emit String errors
       , Scope Sc Label Decl < f           -- Scope graph operations
       )
     => [Expr] -> Sc -> Free f Type
+addSinksForMethods [] _ = return JavaEmpty
 addSinksForMethods ((MethodE name args rt body s):ms) scope = do
   tc (MethodE name args rt body s) scope
   addSinksForMethods ms scope
-
+addSinksForMethods _ _ = err "not a method expression"
 
 typeCheckConsArgs :: [ClassConstructor] -> [Type] -> Bool
-typeCheckConsArgs [] args = False
-typeCheckConsArgs [(Constructor _ consArgs _)] args = consArgs == args
+typeCheckConsArgs [] _ = False
+typeCheckConsArgs [Constructor _ consArgs _] args = consArgs == args
 typeCheckConsArgs ((Constructor _ consArgs _):cs) args =
-  ((consArgs == args) || typeCheckConsArgs cs args)
+  consArgs == args || typeCheckConsArgs cs args
 
 
 
