@@ -9,6 +9,8 @@ import qualified Free.Scope as S (edge, new, sink)
 import Free.Error
 import Syntax
 
+import Control.Monad
+
 import Free.Logic.Exists
 
 ----------------------------
@@ -21,11 +23,23 @@ data Label
   | I -- Import
   deriving (Show, Eq)
 
+
 data Decl
   = VarDecl String Type   -- Variable declaration
-  = FieldDecl Sting Type
-  = ClassDecl String Bool
-  = MethodDecl String [Type] Type Bool
+  | FieldDecl String Type
+  | ClassDecl {
+    className :: String,
+    fields :: [Expr],
+    methods :: [Expr],
+    static :: Bool,
+    constructors :: Maybe [ClassConstructor]
+  }
+  | MethodDecl {
+    name :: String,
+    args :: [(String, Type)],
+    returnT :: Maybe Type,
+    static :: Bool
+  }
   deriving (Show, Eq)
 
 
@@ -33,7 +47,7 @@ data Decl
 projTy :: Decl -> Type
 projTy (VarDecl _ t) = t
 projTy (FieldDecl _ t) = t
-projTy (ClassDecl n s) = (JavaClass n s)
+projTy (ClassDecl n f m s c) = (JavaClass n s c)
 projTy (MethodDecl n args rt s) = (JavaMethod n args rt s)
 
 -- Scope Graph Library Convenience
@@ -58,8 +72,8 @@ pShortest p1 p2 = lenRPath p1 < lenRPath p2
 matchDecl :: String -> Decl -> Bool
 matchDecl x (VarDecl x' _) = x == x'
 matchDecl x (FieldDecl x' _) = x == x'
-matchDecl x (ClassDecl x' _) = x == x'
-matchDecl x (MethodDecl x' _ _ _ ) x == x'
+matchDecl x (ClassDecl x' _ _ _ _) = x == x'
+matchDecl x (MethodDecl x' _ _ _ ) = x == x'
 
 ------------------
 -- Type Checker --
@@ -85,75 +99,103 @@ tc (CharE _) _ = return JavaChar
 tc (BoolE _) _ = return JavaBoolean
 tc (StringE _) _ = return JavaString
 tc (NullE) _ = return JavaNull
+
 tc (FieldE name fieldT value) sc = do
   sink sc D $ FieldDecl name fieldT
-  t' <- tc value sc -- need to check
-  return <- fieldT 
--- tc (MethodE name args returnT body) sc = 
---   case (returnT) of 
---     (Just rt ) -> do
---       methodScope <- new
---       sink sc D $ MethodDecl name [t | ( _ , t) <- args] rt
---       [sink methodScope D $ VarDecl nameArg typeArg | (nameArg, typeArg) <- args ]
---       edge methodScope P sc
---       t' <- tc body methodScope
---       return rt
---     Nothing -> do
---       methodScope <- new
---       sink sc D $ MethodDecl name [t | ( _ , t) <- args] (pure)
---       [sink methodScope D $ VarDecl nameArg typeArg | (nameArg, typeArg) <- args ]
---       edge methodScope P sc
---       t' <- tc body methodScope
---       pure
+  t' <- tc value sc
+  return fieldT 
+
 tc (MethodE name args returnT body s) sc = do
   methodScope <- new
-  sink sc D $ MethodDecl name [t | ( _ , t) <- args] rt s
-  [sink methodScope D $ VarDecl nameArg typeArg | (nameArg, typeArg) <- args ]
+  sink sc D $ MethodDecl name args returnT s
+  addSinksForAllMethodArgs args methodScope
   edge methodScope P sc
-  t' <- tc body methodScope -- need to validate
+  t' <- tc body methodScope -- TODO need to validate
   return $ JavaMethod name args returnT s
 
-tc (ClassE name fields methods static s) sc = do
-  sink sc D $ ClassDecl name s
+tc (ClassE name fields methods static const) sc = do -- TODO make sure fields and methods are actually fields and methods 
+  sink sc D $ ClassDecl name fields methods static const
   classScope <- new
   edge classScope P sc
-  [tc f classScope | f <- fields]
-  [tc m classScope | m <- methods]
-  return $ JavaClass name
+  addSinksForFields fields classScope
+  addSinksForMethods methods classScope
+  return $ JavaClass name static const
 
 tc (DeclarationInitE name typeVar value) sc = do
     sink sc D $ VarDecl name typeVar
-    t' <- tc value sc -- need to check
-    return typeVar
+    actual <- tc value sc -- need to check
+    if typeVar == actual then return typeVar else err "Type missmatch"
 
 tc (DeclarationE name typeVar) sc = do
   sink sc D $ VarDecl name typeVar
   return typeVar
 
 tc (AssigmentE name value) sc = do
-  x <- query sc re pShortest (matchDecl x) <&> map projTy
+  x <- query sc re pShortest (matchDecl name) <&> map projTy
   actual <- tc value sc
-  if x == actual then return x else err $ "Trying to assign" ++ actual " to " ++ actual
+  if (head x) == actual then return actual else err "Type missmatch"
 
 tc (ReferenceE name) sc = do
-  x <- query sc re pShortest (matchDecl x) <&> map projTy
-  return x
-
-tc (MethodCall objReference methodName args) sc = do
-  c <- query sc re pShortest (matchDecl c) <$> map projTy
-   -- how do I get the scope of the instance c, to check in the method actually exsists??
+  x <- query sc re pShortest (matchDecl name) <&> map projTy
+  return (head x)
 
 tc (NewE name args) sc = do
-  objectScope <- scope
+  objectScope <- new
   edge objectScope P sc
-  x <- query sc re pShortest (matchDecl x) <&> map projTy -- I need to somehow find a class deleration inroder to extract the constructor
-  case x of
-    (JavaClass n False) -> return x
-    (JavaClass n True) -> $ err "class " ++ n " is static"
+  x <- query sc re pShortest (matchDecl name)
+  types <- forM args $ \e -> do
+      tc e sc
 
-  
+  case x of
+    [] -> err "No definiton found"
+    [(ClassDecl n f m s cons)] -> 
+      if s then err $ "Trying to estensiat a static class " ++ n
+      else case cons of
+        (Just []) -> if args == [] then return $ JavaObject (JavaClass n s cons) -- no constructor so use the inherited constructor
+          else err $ "Arguemnt Number missmatch"
+        (Just constructors) ->
+          if typeCheckConsArgs constructors types
+            then return $ JavaObject (JavaClass n s cons)
+            else err $ "Didn't find the constructor for the provided args"
+        (Nothing) -> return $ JavaObject (JavaClass n s cons) -- use defualt constructor ? or error
+
+
 
 tc _ _ = err "not implimented"
+
+addSinksForAllMethodArgs :: ( Functor f
+      , Error String < f                  -- Emit String errors
+      , Scope Sc Label Decl < f           -- Scope graph operations
+      )
+   => [(String, Type)] -> Sc -> Free f Type
+addSinksForAllMethodArgs ((name , t):args) scope = do
+  sink scope D $ VarDecl name t
+  addSinksForAllMethodArgs args scope
+
+addSinksForFields :: ( Functor f
+      , Error String < f                  -- Emit String errors
+      , Scope Sc Label Decl < f           -- Scope graph operations
+      )
+    => [Expr] -> Sc -> Free f Type
+addSinksForFields ((FieldE name t e):fs) scope = do
+  tc (FieldE name t e) scope
+  addSinksForFields fs scope
+
+addSinksForMethods :: ( Functor f
+      , Error String < f                  -- Emit String errors
+      , Scope Sc Label Decl < f           -- Scope graph operations
+      )
+    => [Expr] -> Sc -> Free f Type
+addSinksForMethods ((MethodE name args rt body s):ms) scope = do
+  tc (MethodE name args rt body s) scope
+  addSinksForMethods ms scope
+
+
+typeCheckConsArgs :: [ClassConstructor] -> [Type] -> Bool
+typeCheckConsArgs [] args = False
+typeCheckConsArgs [(Constructor _ consArgs _)] args = consArgs == args
+typeCheckConsArgs ((Constructor _ consArgs _):cs) args =
+  ((consArgs == args) || typeCheckConsArgs cs args)
 
 
 

@@ -9,6 +9,13 @@ import GHC.Read (readField)
 -- how would the in line words look like
 -- should I seperate class dec and object instances?
 
+data ClassConstructor =
+   Constructor {
+    forClass :: String,
+    constructorArgs :: [Type],
+    constructorBody :: Expr
+   }
+  deriving (Eq, Show)
 
 -- minimal java code, fields are always public for now
 data Type = JavaInt
@@ -20,22 +27,25 @@ data Type = JavaInt
               | JavaString
               | JavaNull
               | JavaClass {
-                name :: String,
-                static :: Bool
-                constructInfo :: Maybe [[Type]] -- Nothing if class is static , otherwise a list of constructor arg lists, empty for defualt constructor
+                cName :: String,
+                static :: Bool,
+                constructInfo :: Maybe [ClassConstructor] -- Nothing if class is static , otherwise a list of constructor arg lists, empty for defualt constructor
               }
                 -- fields :: [(String, Type)],
                 -- methods :: [(String, JavaMethod)]
                 -- }
               | JavaMethod {
-                name :: String,
-                args :: [(String , Type)],
-                returnT :: Maybe Type
+                mName :: String,
+                mArgs :: [(String , Type)],
+                returnType :: Maybe Type,
                 static :: Bool
                 }
               | JavaArray {
                 elementType :: Type,
                 length :: Int
+              }
+              | JavaObject {
+                instanceOf :: Type
               }
   deriving (Eq, Show)
 
@@ -49,47 +59,48 @@ data Expr
   | StringE String
   | NullE
   | FieldE {
-    name :: String,
+    fieldName :: String,
     fieldT :: Type,
     value :: Expr
   }
   | MethodE {
-    name :: String,
-    args :: [(String, Type)],
+    methodName :: String,
+    methodArgs :: [(String, Type)],
     returnT :: Maybe Type, -- nothing for void
-    body :: Expr
-    static :: Bool
+    methodBody :: Expr,
+    isStaticMethod :: Bool
   }
   | ClassE {
     className :: String,
-    fields :: [FieldE],
-    methods :: [MethodE]
-    static :: Bool
-    constructors :: Maybe [MethodE] -- special methods that is always nonstatic and returns class type that contains it, nothing for static class, empty for defualt constructor
+    fields :: [Expr],
+    methods :: [Expr],
+    isStaticClass :: Bool,
+    constructors :: Maybe [ClassConstructor] -- special methods that is always nonstatic and returns class type that contains it, nothing for static class, empty for defualt constructor
   }
   | DeclarationInitE { --static delarations
-    name :: String,
+    declName :: String,
     typeVar :: Type,
     value :: Expr
   }
   | DeclarationE {  --static delarations
     name :: String,
-    typeVar :: Type,
+    typeVar :: Type
   }
   | AssigmentE {
-    name :: String, -- var to assign to
+    assignTo :: String, -- var to assign to
     value :: Expr -- value
   }
   | ReferenceE String -- referencing a variable
-  | MethodCall {
+  | MethodCallE {
     objReference :: String, -- class instance Name or static class name
     methodName :: String, -- method name
     args :: [Expr] -- args
   }
   | NewE {
-    className :: String
+    createInstanceOf :: String,
     args :: [Expr]
   }
+  | ImportE String
   deriving (Eq, Show)
 
 
