@@ -92,6 +92,11 @@ tcJava :: ( Functor f
 
 tcJava [] _ = return JavaEmpty
 
+tcJava [e] sc = do
+  tc e sc
+
+
+
 tcJava (e:es) sc = do
   tc e sc
   tcJava es sc
@@ -143,13 +148,19 @@ tc (ClassE name fields methods static const) sc = do -- TODO make sure fields an
   return $ JavaClass name static const
 
 tc (DeclarationInitE name typeVar value) sc = do
+  x <- query sc re pShortest (matchDecl name)
+  if not $ null x then err "variable is already defined" 
+  else do
     sink sc D $ VarDecl name typeVar
     actual <- tc value sc -- need to check
     if typeVar == actual then return typeVar else err "Type missmatch"
 
 tc (DeclarationE name typeVar) sc = do
-  sink sc D $ VarDecl name typeVar
-  return typeVar
+  x <- query sc re pShortest (matchDecl name)
+  if not $ null x then err "variable is already defined" 
+  else do
+    sink sc D $ VarDecl name typeVar
+    return typeVar
 
 tc (AssigmentE name value) sc = do
   x <- query sc re pShortest (matchDecl name) <&> map projTy
@@ -166,7 +177,6 @@ tc (NewE name args) sc = do
   x <- query sc re pShortest (matchDecl name)
   types <- forM args $ \e -> do
       tc e sc
-
   case x of
     [] -> err "No definiton found"
     [ClassDecl n _ _ s cons] -> 
@@ -231,3 +241,8 @@ runTC :: Expr -> Either String (Type, Graph Label Decl)
 runTC e = un
         $ handle hErr
         $ handle_ hScope (tc e 0) emptyGraph
+
+runAllTC :: [Expr] -> Either String (Type, Graph Label Decl)
+runAllTC es = un
+        $ handle hErr
+        $ handle_ hScope (tcJava es 0) emptyGraph
