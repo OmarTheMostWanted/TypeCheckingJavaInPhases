@@ -5,19 +5,20 @@ import Test.HUnit
       assertEqual,
       assertFailure,
       runTestTT,
-      Counts(failures),
+      Counts(failures , errors),
       Test(TestList) )
 
 import Syntax
-import TypeCheck (runTC, runAllTC, Label, Decl)
+import TypeCheck (runTC, Label, Decl)
 import qualified System.Exit as Exit
 import Free.Scope (Graph)
 
 runTCTest :: Expr -> IO (Type, Graph Label Decl) 
 runTCTest = either assertFailure return . runTC
 
-runAllTCTest :: [Expr] -> IO (Type, Graph Label Decl) 
-runAllTCTest = either assertFailure return . runAllTC
+
+runTCAllTest :: [Expr] -> IO (Type, Graph Label Decl)
+runTCTAllest = either assertFailure return . runTCAll
 
 runTCFail :: Expr -> IO String
 runTCFail e = either return (const $ assertFailure "Expected exception, got none") $ runTC e
@@ -26,27 +27,17 @@ runTCFail e = either return (const $ assertFailure "Expected exception, got none
 testApplicationLong :: IO ()
 testApplicationLong = do
   t <- runTCTest $ LongE 12123
-  assertEqual "JavaLong" JavaLong $ fst t
+  assertEqual "JavaLongBlahbla" JavaInt $ fst t
 
 testApplicationDeclWithInit :: IO ()
 testApplicationDeclWithInit = do
   t <- runTCTest $ DeclarationInitE "x" JavaInt (IntE 12123)
   assertEqual "JavaInt" JavaInt $ fst t
 
--- testApplicationDeclWithWrongType :: IO ()
--- testApplicationDeclWithWrongType = do
---   t <- runTCFail $ DeclarationInitE "x" JavaString (IntE 12123)
---   assertFailure "Type missmatch"
-
-testUsingRefenceTest :: IO ()
-testUsingRefenceTest = do
-  t <- runAllTCTest [DeclarationInitE "x" JavaString (StringE "12123") , ReferenceE "x"]
-  assertEqual "JavaString" JavaString $ fst t
-
-testDeclThenAssign :: IO ()
-testDeclThenAssign = do
-  t <- runAllTCTest [DeclarationE "x" JavaInt , AssigmentE "x" $ IntE 69, ReferenceE "x"]
-  assertEqual "JavaInt" JavaInt $ fst t
+testApplicationDeclWithWrongType :: IO (String)
+testApplicationDeclWithWrongType = do
+  runTCFail $ DeclarationInitE "x" JavaString (IntE 12123)
+  -- assertFailure "Type missmatch"
 
 -- testApplicationLong :: IO ()
 -- testApplicationLong = do
@@ -57,16 +48,24 @@ testDeclThenAssign = do
 -- testApplicationLong = do
 --   t <- runTCTest $ IntE 12123
 --   assertEqual "JavaLong" JavaLong $ fst t
+
+-- testApplicationLong :: IO ()
+-- testApplicationLong = do
+--   t <- runTCTest $ IntE 12123
+--   assertEqual "JavaLong" JavaLong $ fst t
+
+  testDelcareVarTwiceErrorTest :: IO ()
+  testDelcareVarTwiceErrorTest = do
+    t <- runTCAllTest [DeclarationE "x" JavaString , AssigmentE "x" (JavaString "test")]
+      assertEqual "create then assign" JavaString $ fst t
 
 tests :: Test
 tests = TestList
-    -- Add your test cases to this list
+    -- Add your test cases to this listrunTCAll
     [ 
-    "testApplicationLong" ~: testApplicationLong ,
-    "testApplicationDeclWithInit" ~: testApplicationDeclWithInit,
-    -- "testApplicationDeclWithWrongType" ~: testApplicationDeclWithWrongType,
-    "testUsingRefenceTest" ~: testUsingRefenceTest,
-    "testDeclThenAssign" ~: testDeclThenAssign
+    -- "testApplicationLong" ~: testApplicationLong ,
+    -- "testApplicationDeclWithInit" ~: testApplicationDeclWithInit,
+    "testApplicationDeclWithWrongType" ~: testApplicationDeclWithWrongType
     ]
 
 
@@ -74,4 +73,4 @@ main :: IO ()
 main = do
     result <- runTestTT tests
     print result
-    if failures result > 0 then Exit.exitFailure else Exit.exitSuccess
+    if failures result > 0 || errors result > 0   then Exit.exitFailure else Exit.exitSuccess

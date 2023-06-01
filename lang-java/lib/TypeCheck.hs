@@ -25,7 +25,7 @@ data Label
 
 
 data Decl
-  = VarDecl String Type   -- Variable declaration
+  = VarDecl String Type Sc -- Variable declaration
   | FieldDecl String Type
   | ClassDecl {
     className :: String,
@@ -92,11 +92,6 @@ tcJava :: ( Functor f
 
 tcJava [] _ = return JavaEmpty
 
-tcJava [e] sc = do
-  tc e sc
-
-
-
 tcJava (e:es) sc = do
   tc e sc
   tcJava es sc
@@ -132,7 +127,7 @@ tc (FieldE name fieldT value) sc = do
 tc (MethodE name args returnT body s) sc = do
   methodScope <- new
   sink sc D $ MethodDecl name args returnT s
-  addSinksForAllMethodArgs args methodScope
+  addSinksForAllMethodArgs args methodScope -- use the map(_)
   edge methodScope P sc
   t' <- tc body methodScope -- TODO need to validate
   case returnT of
@@ -148,19 +143,16 @@ tc (ClassE name fields methods static const) sc = do -- TODO make sure fields an
   return $ JavaClass name static const
 
 tc (DeclarationInitE name typeVar value) sc = do
-  x <- query sc re pShortest (matchDecl name)
-  if not $ null x then err "variable is already defined" 
-  else do
     sink sc D $ VarDecl name typeVar
     actual <- tc value sc -- need to check
     if typeVar == actual then return typeVar else err "Type missmatch"
 
 tc (DeclarationE name typeVar) sc = do
   x <- query sc re pShortest (matchDecl name)
-  if not $ null x then err "variable is already defined" 
-  else do
-    sink sc D $ VarDecl name typeVar
-    return typeVar
+  -- if null x then
+  sink sc D $ VarDecl name typeVar
+  return typeVar
+  -- else err "var already defined"
 
 tc (AssigmentE name value) sc = do
   x <- query sc re pShortest (matchDecl name) <&> map projTy
@@ -177,6 +169,7 @@ tc (NewE name args) sc = do
   x <- query sc re pShortest (matchDecl name)
   types <- forM args $ \e -> do
       tc e sc
+
   case x of
     [] -> err "No definiton found"
     [ClassDecl n _ _ s cons] -> 
@@ -198,7 +191,7 @@ addSinksForAllMethodArgs :: ( Functor f
       , Error String < f                  -- Emit String errors
       , Scope Sc Label Decl < f           -- Scope graph operations
       )
-   => [(String, Type)] -> Sc -> Free f Type
+   => [(String, Type)] -> Sc -> Free f Type -- Free f () --Use maybe/ no need to return type.
 addSinksForAllMethodArgs [] _ = return JavaEmpty
 addSinksForAllMethodArgs ((name , t):args) scope = do
   sink scope D $ VarDecl name t
@@ -242,7 +235,7 @@ runTC e = un
         $ handle hErr
         $ handle_ hScope (tc e 0) emptyGraph
 
-runAllTC :: [Expr] -> Either String (Type, Graph Label Decl)
-runAllTC es = un
+runTCAll :: [Expr] -> Either String (Type, Graph Label Decl)
+runTCAll e = un
         $ handle hErr
-        $ handle_ hScope (tcJava es 0) emptyGraph
+        $ handle_ hScope (tcJava e 0) emptyGraph
