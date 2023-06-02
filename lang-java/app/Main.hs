@@ -1,6 +1,6 @@
 module Main where
 import TypeCheck (runTC)
-import Syntax (example)
+-- import Syntax
 
 main :: IO ()
 main = do
