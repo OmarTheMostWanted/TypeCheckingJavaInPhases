@@ -2,20 +2,13 @@ module Syntax where
 
 import ATerms.ATerm
 import qualified ATerms.Parser as P
-import GHC.Read (readField)
+-- import GHC.Read (readField)
+-- import Hefty (Hefty(Return))
 
 
 -- what about keywords like public private .this static and so on
 -- how would the in line words look like
 -- should I seperate class dec and object instances?
-
-data ClassConstructor =
-   Constructor {
-    forClass :: String,
-    constructorArgs :: [Type],
-    constructorBody :: Expr
-   }
-  deriving (Eq, Show)
 
 -- minimal java code, fields are always public for now
 data Type = JavaInt
@@ -25,32 +18,54 @@ data Type = JavaInt
               | JavaChar
               | JavaBoolean
               | JavaString
-              | JavaNull
-              | JavaClass {
-                cName :: String,
-                static :: Bool,
-                constructInfo :: Maybe [ClassConstructor] -- Nothing if class is static , otherwise a list of constructor arg lists, empty for defualt constructor
-              }
                 -- fields :: [(String, Type)],
                 -- methods :: [(String, JavaMethod)]
                 -- }
-              | JavaMethod {
-                mName :: String,
-                mArgs :: [(String , Type)],
-                returnType :: Maybe Type,
-                static :: Bool
-                }
               | JavaArray {
                 elementType :: Type,
                 length :: Int
               }
               | JavaObject {
-                instanceOf :: Type
+                instanceOf :: String
               }
-              | JavaEmpty -- I don't know if this is the way to return Nothing
-
 
   deriving (Eq, Show)
+
+
+data ConstructorInfo =
+   Constructor {
+    forClass :: String,
+    constructorArgs :: [Type],
+    constructorBody :: Expr
+   }
+  deriving (Eq, Show)
+
+data JavaClass
+  = ClassDefinition {
+    superClass :: String,
+    name :: String,
+    members :: [ClassMeme],
+    isStatic :: Bool,
+    constuctor :: ConstructorInfo
+  }
+
+
+data CompilationUnit
+  = CompilationUnit {
+    imports :: [String],
+    classDefinifiton :: JavaClass
+  }
+
+data Literal
+  = IntLiteral Int -- Integer literal
+  | DoubleLiteral Double -- Double literal
+  | BooleanLiteral Bool -- Boolean literal
+  | CharLiteral Char -- Character literal
+  | StringLiteral String -- String literal
+  | NullLiteral -- Null literal
+  | LongLiteral Integer -- Long literal
+  | FloatLiteral Float -- Float literal
+  deriving (Show)
 
 data Expr
   = IntE Integer
@@ -61,54 +76,95 @@ data Expr
   | BoolE Bool
   | StringE String
   | NullE
-  | FieldE {
-    fieldName :: String,
-    fieldT :: Type,
-    value :: Expr
-  }
-  | MethodE {
-    methodName :: String,
-    methodArgs :: [(String, Type)],
-    returnT :: Maybe Type, -- nothing for void
-    methodBody :: Expr,
-    isStaticMethod :: Bool
-  }
-  | ClassE {
-    className :: String,
-    fields :: [Expr],
-    methods :: [Expr],
-    isStaticClass :: Bool,
-    constructors :: Maybe [ClassConstructor] -- special methods that is always nonstatic and returns class type that contains it, nothing for static class, empty for defualt constructor
-  }
-  | DeclarationInitE { --static delarations
-    declName :: String,
-    typeVar :: Type,
-    value :: Expr
-  }
-  | DeclarationE {  --static delarations
-    name :: String,
-    typeVar :: Type
-  }
-  | AssigmentE {
-    assignTo :: String, -- var to assign to
-    value :: Expr -- value
-  }
-  | ReferenceE String -- referencing a variable
-  | MethodCallE {
-    objReference :: String, -- class instance Name or static class name
-    methodName :: String, -- method name
-    args :: [Expr] -- args
-  }
   | NewE {
     createInstanceOf :: String,
-    args :: [Expr]
+    constructorArguments :: [Expr]
   }
-  | ImportE String
+  | BiOpE Expr Expr
+  | UnOpE Expr
+  | ArrayE [Expr]
+  | VarE String -- calling a vars name
+  | MethodCall Expr [Expr]
   deriving (Eq, Show)
 
 
-example :: Expr
-example = DeclarationInitE "aString" JavaString (StringE "69")
+
+{-
+
+Statements:
+
+    They can contain assignments, method invocations, control flow structures (e.g., if-else, for loop), variable declarations, etc.
+    They typically end with a semicolon (;).
+    They do not produce a value.
+    They are used to perform actions or control the flow of execution.
+
+Expressions:
+
+    They compute a value.
+    They can be used as part of larger expressions or as arguments for method invocations.
+    They can consist of literals, variables, method calls, arithmetic operations, etc.
+    They do not require a semicolon (;) at the end.
+
+-}
+
+
+-- Data type for binary operators
+data BinaryOperator
+  = Plus -- Addition operator
+  | Minus -- Subtraction operator
+  | Multiply -- Multiplication operator
+  | Divide -- Division operator
+  | Modulo -- Modulo operator
+  | EqualTo -- Equality operator
+  | NotEqualTo -- Inequality operator
+  | GreaterThan -- Greater than operator
+  | LessThan -- Less than operator
+  | GreaterThanOrEqualTo -- Greater than or equal to operator
+  | LessThanOrEqualTo -- Less than or equal to operator
+  | LogicalAnd -- Logical AND operator
+  | LogicalOr -- Logical OR operator
+  | BitwiseAnd -- Bitwise AND operator
+  | BitwiseOr -- Bitwise OR operator
+  | BitwiseXor -- Bitwise XOR operator
+  | LeftShift -- Left shift operator
+  | RightShift -- Right shift operator
+  | UnsignedRightShift -- Unsigned right shift operator
+  deriving (Show)
+
+data Expression
+  = LiteralExpression Literal -- Literal expression
+  | VariableAccessExpression String -- Variable access expression
+  | MethodInvocationExpression Expression [Expression] -- Method invocation expression
+  | ArithmeticExpression BinaryOperator Expression Expression -- Arithmetic expression
+  | ComparisonExpression BinaryOperator Expression Expression -- Comparison expression
+  | ConditionalExpression Expression Expression Expression -- Conditional expression
+  | LogicalExpression BinaryOperator Expression Expression -- Logical expression
+  | BitwiseExpression BinaryOperator Expression Expression -- Bitwise expression
+  | ShiftExpression BinaryOperator Expression Expression -- Shift expression
+  | AssignmentExpression Expression Expression -- Assignment expression
+  | ObjectCreationExpression Type [Expression] -- Object creation expression
+  | ArrayAccessExpression Expression Expression -- Array access expression
+  | ArrayCreationExpression Type Expression -- Array creation expression
+  | TypeCastExpression Type Expression -- Type cast expression
+  | InstanceofExpression Expression Type -- Instanceof expression
+  | MethodReferenceExpression Expression String -- Method reference expression
+  deriving (Show)
+
+data ClassMeme
+  = Flied Type String Expr
+  | Method {
+    methodName :: String,
+    retturnType :: Type,
+    args :: [(String, Type)],
+    body :: [Statment]
+  }
+
+data Statment
+  = ReturnS Expr
+  | AssignmentS Type String (Maybe Expr)
+  | SExpr Expr
+
+
 
 
 path = "/example"
