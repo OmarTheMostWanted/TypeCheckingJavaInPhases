@@ -7,7 +7,7 @@ import Free
 import Free.Scope hiding (edge, new, sink)
 import qualified Free.Scope as S (edge, new, sink)
 import Free.Error
-import Syntax (CompilationUnit,Expression ,JavaType)
+import Syntax (CompilationUnit,Expression ,JavaType (IntType))
 
 import Control.Monad
 
@@ -34,7 +34,7 @@ tc :: ( Functor f
       , Scope Sc Label Decl < f           -- Scope graph operations
       )
    => Expression -> Sc -> Free f JavaType
-   tc _ _ = err "Unknown"
+tc _ _ = return IntType
 
 
 
