@@ -20,6 +20,9 @@ data JavaType
   deriving (Eq, Show)
 
 
+
+
+
 -- Data type for literals
 data Literal
   = IntLiteral Int
@@ -33,9 +36,9 @@ data Literal
   deriving (Eq, Show)
 
 data BinaryOp
-    = Eq
-    | Sum
-    | And
+    = EqualityOp
+    | BooleanOp
+    | ArithmaticOp
     deriving (Eq, Show)
 
 
@@ -51,12 +54,11 @@ data Expression
     | MethodCallE String [Expression]
     | BinaryOpE Expression BinaryOp Expression
     | UnaryOpE UnaryOp Expression
-    | CastE JavaType Expression
-    | InstanceOfE Expression JavaType
-    | ThisE
-    | SuperE
-    | AssignmentE String Expression
-    | NewE JavaType [Expression]
+    -- | CastE JavaType Expression
+    -- | InstanceOfE Expression JavaType
+    -- | ThisE
+    -- | SuperE
+    | NewE String [Expression]
     | FieldAccessE Expression String
     | MethodInvocationE Expression String [Expression]
     deriving (Eq, Show)
@@ -99,8 +101,28 @@ data Member
   deriving (Eq, Show)
 
 -- Data type for Constructor
-data Constructor = Constructor String [MethodParameter] [Statement]
+data Constructor = Constructor [MethodParameter] [Statement]
+  | DefaultConstructor -- use the super constructor
   deriving (Eq, Show)
 
 data MethodParameter = Parameter JavaType String
     deriving (Eq, Show)
+
+
+ {-
+ 
+ 
+ type checking is hard, (scope graphs) sematics for name binding
+ how to order type checking (with statix it takes care of stable querying)
+
+ How bad is this in practice, can you we get the benifits of using scope graphs without the comelexity of statixs 
+Manually phasing the type checking is usefull 
+
+================================================================
+How do we do it?? using scope graphs
+How difficult is it to do it in phases and how many phases we need.
+================================================================
+
+
+
+ -}
