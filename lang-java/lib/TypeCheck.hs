@@ -12,6 +12,8 @@ import Syntax
 import Control.Monad
 
 import Free.Logic.Exists
+import GHC.ExecutionStack (Location(objectName))
+import qualified Control.Monad as Data.Foldable
 
 
 data Label
@@ -217,10 +219,78 @@ tcExpr (NewE className args) scope = do
         _ -> err $ "More than one constructor found which is not allowed for now for class " ++ className 
     _ -> err $ "More than one class definition found of " ++ className
  
--- tcExpr (FieldAccessE expr fieldName) scope = 
--- tcExpr (MethodInvocationE expr methodName args) scope = ...
+tcExpr (FieldAccessE expr fieldName) scope = do
+  object <- tcExpr expr scope
+  case object of
+    (ObjectType objectName) -> do
+      classDecl <- query scope re pShortest (matchDecl objectName)
+      case classDecl of
+        [] -> err $ "Class " ++ objectName ++ " not found"
+        [ClassDecl name classScope] -> do
+          fieldDecl <- query classScope re pShortest (matchDecl fieldName)
+          case fieldDecl of
+            [] -> err $ "Field " ++ fieldName ++ " not found in class " ++ name
+            [VarDecl _ t] -> return t
+            _ -> err "More than on deffiniton found"
+        _ -> err "More than one class found"
+    _ -> err $ "Name found but was not for an object, it was a " ++ show object
 
-tcExpr _ _ = undefined
+
+
+tcExpr (MethodInvocationE expr methodName args) scope = do
+  object <- tcExpr expr scope
+  case object of
+    (ObjectType objectName) -> do
+      classDecl <- query scope re pShortest (matchDecl objectName)
+      case classDecl of
+        [] -> err $ "Class " ++ objectName ++ " not found"
+        [ClassDecl name classScope] -> do
+          methodDecl <- query classScope re pShortest (matchDecl methodName)
+          case methodDecl of
+            [] -> err $ "Method " ++ methodName ++ " not found in class " ++ name
+            [MethodDecl _ t params] -> do
+              tcMethodArgs params args scope
+              return t
+            _ -> err "More than on deffiniton found"
+        _ -> err "More than one class found"
+    _ -> err $ "Name found but was not for an object, it was a " ++ show object
+
+
+tcStatement :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Statement -> Sc -> Free f ()
+tcStatement (AssignmentS varName expr) scope = do
+  r <- tcExpr expr scope
+  l <- query scope re pShortest (matchDecl varName)
+  case l of
+    [] -> err $ "var " ++ varName ++ "not found"
+    [VarDecl _ t] -> if t == r then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show t -- ToDo inheritance allows sub class to be assigned to a super class
+    _ -> err "More than of decl found"
+  
+  
+tcStatement (IfS condExpr thenStmt maybeElseStmt) scope = do
+  cond <- tcExpr condExpr scope
+  if cond /= BooleanType then err $ "If statemtns condtion is not a bool but is " ++ show cond
+  else do
+    mapM_ (`tcStatement` scope) thenStmt
+    Data.Foldable.forM_ maybeElseStmt (mapM_ (`tcStatement` scope))
+
+tcStatement (WhileS condExpr stmts) scope = do
+  cond <- tcExpr condExpr scope
+  if cond /= BooleanType then err $ "While loop condtion is not a bool but is " ++ show cond
+  else do
+    mapM_ (`tcStatement` scope) stmts
+
+tcStatement (VariableDeclarationS varType varName maybeInitializer) scope = do
+  case maybeInitializer of
+    Nothing -> sink scope D $ VarDecl varName varType
+    Just e -> do
+      r <- tcExpr e scope
+      if r == varType then sink scope D $ VarDecl varName varType else err $ "Type missmatch expected: " ++ show varType ++ " but got " ++ show r
+      
+
+tcStatement (ReturnS maybeExpr) scope = undefined
+tcStatement BreakS scope = undefined
+tcStatement ContinueS scope = undefined
+tcStatement (ExpressionStatement expr) scope = undefined
 
 
 tcUnaryOp :: (Functor f, Error String < f, Scope Sc Label Decl < f) => UnaryOp -> Expression -> Sc -> Free f JavaType
@@ -302,25 +372,12 @@ tcLiteral NullLiteral = undefined -- Handle null literal case
 
 
 
-tc :: ( Functor f
-      -- List of 'capabilities' of type checker
-      -- No need for inference: Disable parts related to first-order unification and generalization
-      -- , Exists Type < f                   -- Introduce new meta-variables
-      -- , Equals Type < f                   -- First-order unification
-      -- , Generalize [Int] Type < f         -- HM-style generalization
-      , Error String < f                  -- Emit String errors
-      , Scope Sc Label Decl < f           -- Scope graph oGraph Label Decperations
-      )
-   => Expression -> Sc -> Free f JavaType
-tc _ _ = return IntType
-
-
 
 -- Tie it all together
-runTC :: [CompilationUnit] -> Either String (JavaType, Graph Label Decl)
+runTC :: [CompilationUnit] -> Either String ((), Graph Label Decl)
 runTC e = un
         $ handle hErr
-        $ handle_ hScope (tc e 0) emptyGraph
+        $ handle_ hScope (tcProgram e) emptyGraph
 
 -- runTCAll :: [Expr] -> Either String (Type, Graph Label Decl)
 -- runTCAll e = un
