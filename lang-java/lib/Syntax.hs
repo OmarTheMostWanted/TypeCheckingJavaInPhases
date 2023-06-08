@@ -17,6 +17,7 @@ data JavaType
 --   | ShortType
   | ObjectType String  -- For custom object types
   | ArrayType JavaType
+  | Void
   deriving (Eq, Show)
 
 
@@ -39,6 +40,7 @@ data BinaryOp
     = EqualityOp
     | BooleanOp
     | ArithmaticOp
+    | StringConcatOp
     deriving (Eq, Show)
 
 
@@ -56,7 +58,7 @@ data Expression
     | UnaryOpE UnaryOp Expression
     -- | CastE JavaType Expression
     -- | InstanceOfE Expression JavaType
-    -- | ThisE
+    | ThisE  -- I need to make sure apply the correct path for the query here as only on P is allowed
     -- | SuperE
     | NewE String [Expression]
     | FieldAccessE Expression String
@@ -77,7 +79,7 @@ data Statement
 --   | ThrowStatement Expression
 --   | TryStatement [Statement] (Maybe [CatchClause]) (Maybe [Statement]) (Maybe FinallyClause)
 --   | SynchronizedStatement Expression [Statement]
-  | ExpressionStatement Expression
+  | ExpressionS Expression
   deriving (Eq, Show)
 
 
@@ -91,17 +93,31 @@ newtype ImportDeclaration = ImportDeclaration String
   deriving (Eq, Show)
 
 -- Data type for Class Declaration
-data ClassDeclaration = ClassDeclaration String [Member] Bool (Maybe Constructor)
+data ClassDeclaration = 
+  ClassDeclaration {
+    className :: String,
+    memebers :: [Member],
+    isStatic :: Bool,
+    constructor :: Maybe Constructor
+  }
   deriving (Eq, Show)
 
 -- Data type for Members
 data Member
   = FieldDeclaration JavaType String (Maybe Expression)
-  | MethodDeclaration JavaType String [MethodParameter] [Statement]
+  | MethodDeclaration {
+    returnType :: Maybe JavaType,
+    methodName :: String,
+    methodParameters :: [MethodParameter],
+    methodBody :: [Statement]
+  }
   deriving (Eq, Show)
 
 -- Data type for Constructor
-data Constructor = Constructor [MethodParameter] [Statement]
+data Constructor = Constructor {
+  constructorParameters :: [MethodParameter],
+  constructorBody :: [Statement]
+  }
   | DefaultConstructor -- use the super constructor
   deriving (Eq, Show)
 

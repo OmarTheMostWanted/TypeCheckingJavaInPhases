@@ -14,6 +14,8 @@ import Control.Monad
 import Free.Logic.Exists
 import GHC.ExecutionStack (Location(objectName))
 import qualified Control.Monad as Data.Foldable
+import Control.Arrow (ArrowLoop(loop))
+import Control.Monad.Trans.Accum (accum)
 
 
 data Label
@@ -27,16 +29,16 @@ data Label
 
 data Decl
   = VarDecl String JavaType -- Variable declaration
-  | MethodDecl String JavaType [MethodParameter]
+  | MethodDecl String (Maybe JavaType) [MethodParameter]
   | ClassDecl String Sc
   | ConstructorDecl String [MethodParameter]
   deriving (Show, Eq)
 
-projTy :: Decl -> JavaType
-projTy (VarDecl _ t) = t
-projTy (MethodDecl _ t _) = t
-projTy (ClassDecl t _ ) = ObjectType t
-projTy (ConstructorDecl t _) = ObjectType t
+-- projTy :: Decl -> JavaType
+-- projTy (VarDecl _ t) = t
+-- projTy (MethodDecl _ t _) = t
+-- projTy (ClassDecl t _ ) = ObjectType t
+-- projTy (ConstructorDecl t _) = ObjectType t
 
 
 -- Regular expression P*D
@@ -47,6 +49,9 @@ re = Dot (Star $ Atom P) $ Atom D
 pShortest :: PathOrder Label Decl
 pShortest p1 p2 = lenRPath p1 < lenRPath p2
 
+-- Path order based on length
+thisPath :: PathOrder Label Decl
+thisPath p1 p2 = lenRPath p1 > lenRPath p2
 
 
 -- Match declaration with particular name
@@ -119,10 +124,15 @@ addDeclsForClassMemebers (m:ms) classScope =
       sink classScope D $ VarDecl name ft
       addDeclsForClassMemebers ms classScope
 
-    (MethodDeclaration rt name params _) -> do
+    (MethodDeclaration Nothing name params _) -> do
+      mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
+      sink classScope D $ MethodDecl name Nothing params
+      addDeclsForClassMemebers ms classScope
+
+    (MethodDeclaration (Just rt) name params _) -> do
       checkIfTypeIsVisibleInScope rt classScope
       mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
-      sink classScope D $ MethodDecl name rt params
+      sink classScope D $ MethodDecl name (Just rt) params
       addDeclsForClassMemebers ms classScope
 
 checkIfTypeIsVisibleInScope :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaType -> Sc -> Free f ()
@@ -133,9 +143,6 @@ checkIfTypeIsVisibleInScope (ObjectType typeName) classScope = do
     [ClassDecl _ _] -> return ()
     _ -> err $ "More than one declaration of " ++ typeName
 checkIfTypeIsVisibleInScope _ _ = return () 
-      
-
-
 
 
 -- Third pass, resolve name binding for right side for field declarations and method bodies
@@ -151,9 +158,17 @@ tcThirdPhase ((CompilationUnit _ (ClassDeclaration className memebers _ construc
     _ -> err $ "More than one Decl of class " ++ className ++ " found"
   tcThirdPhase cus programScope
 
+
 tcClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe Constructor -> Sc -> Free f ()
 tcClassConstructor (Just (Constructor params body)) classScope = do
-  tcMethodParameters params classScope
+  methodScope <- new
+  edge methodScope P classScope
+  mapM_ (`addParamToMethodScope` methodScope) params
+  returnType <- tcBlock False body methodScope
+  case returnType of 
+    Nothing -> return ()
+    _ -> err "Constructor returns something"
+
 tcClassConstructor _ _ = return ()
 
 tcClassMemebers :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [Member] -> Sc -> Free f ()
@@ -165,17 +180,14 @@ tcClassMemebers (m:ms) classScope =
       if actualType == ft then tcClassMemebers ms classScope else err $ "Declared Type and Actual Type of Field " ++ name ++ " do not match"
     (FieldDeclaration _ _ Nothing) -> do
       tcClassMemebers ms classScope
-    (MethodDeclaration rt name params body) -> do
-      tcMethodParameters params classScope   -- what if the method param uses a type the shouldn't exsist?? 
+    (MethodDeclaration rt _ params body) -> do
+      methodScope <- new
+      edge methodScope P classScope
+      mapM_ (`addParamToMethodScope` methodScope) params
+      actual <- tcBlock False body methodScope
+      if rt == actual then tcClassMemebers ms classScope else err "Method declared return type and actual return type don't match"
       tcClassMemebers ms classScope
 
-
-tcMethodParameters :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [MethodParameter] -> Sc -> Free f ()
-tcMethodParameters [] _ = return ()
-tcMethodParameters paramList classScope = do
-  methodScope <- new
-  edge methodScope P classScope
-  mapM_ (`addParamToMethodScope` methodScope) paramList
 
 
 addParamToMethodScope :: (Functor f, Error String < f, Scope Sc Label Decl < f) => MethodParameter -> Sc -> Free f ()
@@ -183,6 +195,7 @@ addParamToMethodScope (Parameter t  n) methodScope = do
   sink methodScope D $ VarDecl n t
 
 tcExpr :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Expression -> Sc -> Free f JavaType
+tcExpr (ThisE) scope = undefined
 tcExpr (LiteralE l) _ = tcLiteral l
 tcExpr (VariableIdE varName) scope = do
   variableDecl <- query scope re pShortest (matchDecl varName)
@@ -194,9 +207,12 @@ tcExpr (VariableIdE varName) scope = do
 tcExpr (MethodCallE methodName args) scope = do
   methodDecl <- query scope re pShortest (matchDecl methodName)
   case methodDecl of
-    [MethodDecl _ rt params] -> do
+    [MethodDecl _ (Just rt) params] -> do
       tcMethodArgs params args scope
       return rt
+    [MethodDecl _ Nothing params] -> do
+      tcMethodArgs params args scope
+      return Void
     [] -> err $ "Method " ++ methodName ++ " Not Found"
     _ -> err $ "More than one Decl of method " ++ methodName ++ " found"  -- what about method overriding and overlaoding?????
 
@@ -248,9 +264,12 @@ tcExpr (MethodInvocationE expr methodName args) scope = do
           methodDecl <- query classScope re pShortest (matchDecl methodName)
           case methodDecl of
             [] -> err $ "Method " ++ methodName ++ " not found in class " ++ name
-            [MethodDecl _ t params] -> do
+            [MethodDecl _ (Just t) params] -> do
               tcMethodArgs params args scope
               return t
+            [MethodDecl _ Nothing params] -> do
+              tcMethodArgs params args scope
+              return Void
             _ -> err "More than on deffiniton found"
         _ -> err "More than one class found"
     _ -> err $ "Name found but was not for an object, it was a " ++ show object
@@ -266,18 +285,17 @@ tcStatement (AssignmentS varName expr) scope = do
     _ -> err "More than of decl found"
   
   
-tcStatement (IfS condExpr thenStmt maybeElseStmt) scope = do
+tcStatement (IfS condExpr _ _) scope = do
   cond <- tcExpr condExpr scope
-  if cond /= BooleanType then err $ "If statemtns condtion is not a bool but is " ++ show cond
-  else do
-    mapM_ (`tcStatement` scope) thenStmt
-    Data.Foldable.forM_ maybeElseStmt (mapM_ (`tcStatement` scope))
+  when (cond /= BooleanType)
+    $ err $ "If statemtns condtion is not a bool but is " ++ show cond
 
-tcStatement (WhileS condExpr stmts) scope = do
+tcStatement (WhileS condExpr _) scope = do
   cond <- tcExpr condExpr scope
-  if cond /= BooleanType then err $ "While loop condtion is not a bool but is " ++ show cond
-  else do
-    mapM_ (`tcStatement` scope) stmts
+  when (cond /= BooleanType)
+    $ err $ "While loop condtion is not a bool but is " ++ show cond
+
+tcStatement (VariableDeclarationS Void varName _) scope = err $ "Variable " ++ varName ++ " can't be of type void"
 
 tcStatement (VariableDeclarationS varType varName maybeInitializer) scope = do
   case maybeInitializer of
@@ -287,10 +305,20 @@ tcStatement (VariableDeclarationS varType varName maybeInitializer) scope = do
       if r == varType then sink scope D $ VarDecl varName varType else err $ "Type missmatch expected: " ++ show varType ++ " but got " ++ show r
       
 
-tcStatement (ReturnS maybeExpr) scope = undefined
-tcStatement BreakS scope = undefined
-tcStatement ContinueS scope = undefined
-tcStatement (ExpressionStatement expr) scope = undefined
+tcStatement (ReturnS maybeExpr) scope = 
+  case maybeExpr of
+    Nothing -> return ()
+    Just e -> do
+      actual <- tcExpr e scope
+      case actual of
+        Void -> err "Can't return Void"
+        _ -> return ()
+
+tcStatement BreakS _ = return ()
+tcStatement ContinueS _ = return ()
+tcStatement (ExpressionS expr) scope = do
+  tcExpr expr scope 
+  return ()
 
 
 tcUnaryOp :: (Functor f, Error String < f, Scope Sc Label Decl < f) => UnaryOp -> Expression -> Sc -> Free f JavaType
@@ -319,8 +347,19 @@ tcBinaryOp ArithmaticOp l r sc = do
   if isNumber actualL then 
     if isNumber actualR 
       then return $ getResultType actualL actualR  
-      else err "Right side is not a boolean"
-  else  err "Left side is not a boolean"
+      else err "Right side is not a number"
+  else  err "Left side is not a number"
+
+tcBinaryOp StringConcatOp l r sc = do 
+  actualL <- tcExpr l sc
+  actualR <- tcExpr r sc
+  if actualL == StringType then 
+    if actualR == StringType
+      then return StringType
+      else err "Right side is not a string"
+  else  err "Left side is not a string"
+
+
 
 isNumber :: JavaType -> Bool
 isNumber IntType = True
@@ -352,12 +391,66 @@ tcMethodArgs params args classScope =
         else err $ "Method arguments do not match method parameters: expected " ++ show expected ++ " but got " ++ show actual
     else err "Number of arguments does not match number of parameters"
 
--- -- Match method arguments against parameters
--- matchMethodArgs :: [JavaType] -> [MethodParameter] -> Bool
--- matchMethodArgs args params =
---   length args == length params && all match (zip args params)
---   where
---     match (arg, Parameter paramType _) = arg == paramType
+
+tcBlock :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Bool -> [Statement] -> Sc -> Free f (Maybe JavaType)
+tcBlock _ [] _ = return Nothing
+
+tcBlock _ [ReturnS Nothing] _ = return Nothing
+
+tcBlock _ [ReturnS (Just e)] scope = do
+  actual <- tcExpr e scope
+  case actual of
+    Void -> err "Can't return void"
+    _ -> return $ Just actual
+
+tcBlock _ ((ReturnS _):_) _ = err "Unreachable code after return statemnt"
+tcBlock l [BreakS] _ = if l then return Nothing else err "Break is not allowed outside of loop"
+tcBlock l [ContinueS] _ = if l then return Nothing else err "Continue is not allowed outside of loop"
+tcBlock _ (BreakS:_) _ = err "Unreachable code after break statemnt"
+tcBlock _ (ContinueS:_) _ = err "Unreachable code after continue statemnt"
+
+tcBlock l ((AssignmentS n e):rest) scope = do
+  tcStatement (AssignmentS n e) scope
+  tcBlock l rest scope
+
+tcBlock l ((IfS e t Nothing):rest) scope = do
+  tcStatement (IfS e t Nothing) scope
+  trueBranchScope <- new
+  edge trueBranchScope P scope
+  trueBranchReturn <- tcBlock l t trueBranchScope
+  restReturn <- tcBlock l rest scope
+  if trueBranchReturn == restReturn then return trueBranchReturn else err "Return Type missmatch"
+
+tcBlock l ((IfS e t (Just f)):rest) scope = do
+  tcStatement (IfS e t (Just f)) scope
+  trueBranchScope <- new
+  edge trueBranchScope P scope
+  trueBranchReturn <- tcBlock l t trueBranchScope
+  falseBranchScope <- new
+  edge falseBranchScope P scope
+  falseBranchScope <- tcBlock l f falseBranchScope
+  restReturn <- tcBlock l rest scope
+  if trueBranchReturn /= falseBranchScope 
+    then err "The true and false branches return differnt types"
+    else if trueBranchReturn == restReturn 
+      then return trueBranchReturn 
+      else err "Return Type missmatch"
+
+tcBlock l ((WhileS e loopBody):rest) scope = do
+  tcStatement (WhileS e loopBody) scope
+  loopScope <- new
+  loopReturn <- tcBlock True loopBody loopScope
+  restReturn <- tcBlock l rest scope
+  if loopReturn == restReturn then return loopReturn else err "Return Type missmatch"
+
+tcBlock l ((VariableDeclarationS t s e):rest) scope = do
+  tcStatement (VariableDeclarationS t s e) scope
+  tcBlock l rest scope
+
+tcBlock l ((ExpressionS e):rest) scope = do
+  tcStatement (ExpressionS e) scope
+  tcBlock l rest scope
+
 
 tcLiteral :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Literal -> Free f JavaType
 tcLiteral (IntLiteral _) = return IntType
@@ -367,7 +460,7 @@ tcLiteral (DoubleLiteral _) = return DoubleType
 tcLiteral (BooleanLiteral _) = return BooleanType
 tcLiteral (CharLiteral _) = return CharType
 tcLiteral (StringLiteral _) = return StringType
-tcLiteral NullLiteral = undefined -- Handle null literal case
+tcLiteral NullLiteral = return Void -- Handle null literal case
 
 
 
