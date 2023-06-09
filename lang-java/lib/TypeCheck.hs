@@ -16,12 +16,15 @@ import GHC.ExecutionStack (Location(objectName))
 import qualified Control.Monad as Data.Foldable
 import Control.Arrow (ArrowLoop(loop))
 import Control.Monad.Trans.Accum (accum)
+import GHC.Base (Module)
 
 
 data Label
   = P -- Lexical Parent Label
   | D -- Declaration
   | I -- Import
+  | M -- Module Declaration
+  | Cl -- Class Declaration to resolve this keyword
   deriving (Show, Eq)
 
 
@@ -31,6 +34,7 @@ data Decl
   = VarDecl String JavaType -- Variable declaration
   | MethodDecl String (Maybe JavaType) [MethodParameter]
   | ClassDecl String Sc
+  | ModuleDecl String Sc
   | ConstructorDecl String [MethodParameter]
   deriving (Show, Eq)
 
@@ -41,15 +45,28 @@ data Decl
 -- projTy (ConstructorDecl t _) = ObjectType t
 
 
--- Regular expression P*D
+-- Regular expression P*D must be chanced to allow for a single import edge I 
 re :: RE Label
-re = Dot (Star $ Atom P) $ Atom D
+re = Dot (Star $ Atom P)  $ Atom D
 
--- Path order based on length
+-- Regular expression P*M
+moduleRe :: RE Label
+moduleRe = Dot (Star $ Atom P) $ Atom M
+
+-- Regular expression P*Cl to resolve this
+classRe :: RE Label
+classRe = Dot (Star $ Atom P) $ Atom Cl
+
+-- -- Find the nearest module
+-- pCloserModule :: PathOrder Label Decl
+-- pCloserModule p1 p2 = lenRPath p1 < lenRPath p2
+
+
+-- Path order based on length for shadowing
 pShortest :: PathOrder Label Decl
 pShortest p1 p2 = lenRPath p1 < lenRPath p2
 
--- Path order based on length
+-- Path order based on length for this keyword
 thisPath :: PathOrder Label Decl
 thisPath p1 p2 = lenRPath p1 > lenRPath p2
 
@@ -60,6 +77,8 @@ matchDecl x (VarDecl x' _) = x == x'
 matchDecl x (MethodDecl x' _ _) = x == x'
 matchDecl x (ClassDecl x' _) = x == x'
 matchDecl x (ConstructorDecl t _) = x == t
+matchDecl x (ModuleDecl x' _) = x == x'
+
 
 
 
@@ -73,40 +92,81 @@ new = S.new @_ @Label @Decl
 sink :: Scope Sc Label Decl < f => Sc -> Label -> Decl -> Free f ()
 sink = S.sink @_ @Label @Decl
 
-
-tcProgram :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit]  -> Free f ()
-tcProgram cu = do
+tcProgram :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule] -> Free f ()
+tcProgram [] = return ()
+tcProgram modules = do
   programScope <- new
-  tcFirstPhase cu programScope
-  tcSecondPhase cu programScope
-  tcThirdPhase cu programScope
+  discoverModules modules programScope -- discorver all modules in the program
+  mapM_ (`tcModule` programScope) modules
+
+discoverModules :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule]  -> Sc -> Free f ()
+discoverModules [] _ = return ()
+discoverModules ((JavaModule n _):ms) programScope = do
+  moduleScope <- new
+  sink programScope M $ ModuleDecl n moduleScope
+  edge moduleScope P programScope
+  discoverModules ms programScope
+
+
+tcModule :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaModule -> Sc -> Free f ()
+tcModule (JavaModule n cu) programScope = do
+  moduleDecl <- query programScope Empty pShortest (const True)
+  print moduleDecl
+  case moduleDecl of
+    [] -> err $ "Module " ++ n ++ " not found"
+    [ModuleDecl _ moduleScope] -> do
+      tcFirstPhase cu moduleScope
+      tcSecondPhase cu moduleScope
+      tcThirdPhase cu moduleScope
+    _ -> err "Multiple modules found"
+
 
 
 -- First pass to start constructing the scope graph which involes adding declarations for all class's in the program.
 tcFirstPhase :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
 tcFirstPhase [] _ = return ()
-tcFirstPhase ((CompilationUnit _ (ClassDeclaration className _ isStatic constructor)):cus) programScope = do
+tcFirstPhase ((CompilationUnit _ (ClassDeclaration className _ isStatic constructor)):cus) moduleScope = do
   classScope <- new
-  edge classScope P programScope
-  sink programScope D $ ClassDecl className classScope
+  edge classScope P moduleScope
+  sink moduleScope Cl $ ClassDecl className classScope
   if isStatic then 
     case constructor of 
     (Just _) -> err $ "Static class " ++ className ++ " is static but has a constructor"
-    _ -> tcFirstPhase cus programScope
-  else tcFirstPhase cus programScope
+    _ -> tcFirstPhase cus moduleScope
+  else tcFirstPhase cus moduleScope
 
--- Second pass for all classes create Create sinks for all memmbers, only Left hand side only ie, don't type check field values nor method bodies and arguemts
+
+tcImports :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [ImportDeclaration] -> Sc -> Free f ()
+tcImports [] _ = return ()
+tcImports ((ImportDeclaration m c):ims) classScope = do
+  moduleToSearch <- query classScope moduleRe pShortest (matchDecl m)
+  case moduleToSearch of
+    [] -> err $ "Module " ++ m ++ " not found"
+    [ModuleDecl _ moduleScope] -> do
+      classToImport <- query moduleScope classRe pShortest (matchDecl c)
+      case classToImport of
+        [] -> err $ "Class " ++ c ++ " not found in module " ++ m
+        [ClassDecl _ importedClassScope] -> edge classScope I importedClassScope
+        _ -> err "More than one class found"
+    _ -> err "More than one module found"
+  tcImports ims classScope
+
+
+
+
+-- Second pass for all classes resolve imports and create Create sinks for all memmbers, only Left hand side only ie, don't type check field values nor method bodies and arguemts
 tcSecondPhase :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
 tcSecondPhase [] _ = return ()
-tcSecondPhase ((CompilationUnit _ (ClassDeclaration className memebers _ constructor)):cus) programScope = do
-  classDecl <- query programScope re pShortest (matchDecl className)
+tcSecondPhase ((CompilationUnit imports (ClassDeclaration className memebers _ constructor)):cus) moduleScope = do
+  classDecl <- query moduleScope classRe pShortest (matchDecl className)
   case classDecl of
     [ClassDecl _ classScope] -> do
+      tcImports imports classScope -- resolve imports first
       addClassConstructor constructor className classScope
       addDeclsForClassMemebers memebers classScope
     [] -> err $ "Class " ++ className ++ " Not Found"
     _ -> err $ "More than one Decl of class " ++ className ++ " found"
-  tcSecondPhase cus programScope
+  tcSecondPhase cus moduleScope
 
 addClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe Constructor -> String -> Sc -> Free f ()
 addClassConstructor (Just (Constructor params _)) className classScope = do
@@ -137,7 +197,7 @@ addDeclsForClassMemebers (m:ms) classScope =
 
 checkIfTypeIsVisibleInScope :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaType -> Sc -> Free f ()
 checkIfTypeIsVisibleInScope (ObjectType typeName) classScope = do
-  match <- query classScope re pShortest (matchDecl typeName)
+  match <- query classScope classRe pShortest (matchDecl typeName)
   case match of
     [] -> err $ "Type " ++ typeName ++ " doesn't exist in scope"
     [ClassDecl _ _] -> return ()
@@ -148,15 +208,15 @@ checkIfTypeIsVisibleInScope _ _ = return ()
 -- Third pass, resolve name binding for right side for field declarations and method bodies
 tcThirdPhase :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
 tcThirdPhase [] _ = return ()
-tcThirdPhase ((CompilationUnit _ (ClassDeclaration className memebers _ constructor)):cus) programScope = do
-  classDecl <- query programScope re pShortest (matchDecl className)
+tcThirdPhase ((CompilationUnit _ (ClassDeclaration className memebers _ constructor)):cus) moduleScope = do
+  classDecl <- query moduleScope classRe pShortest (matchDecl className)
   case classDecl of
     [ClassDecl _ classScope] -> do
       tcClassConstructor constructor classScope
       tcClassMemebers memebers classScope
     [] -> err $ "Class " ++ className ++ " Not Found"
     _ -> err $ "More than one Decl of class " ++ className ++ " found"
-  tcThirdPhase cus programScope
+  tcThirdPhase cus moduleScope
 
 
 tcClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe Constructor -> Sc -> Free f ()
@@ -195,7 +255,13 @@ addParamToMethodScope (Parameter t  n) methodScope = do
   sink methodScope D $ VarDecl n t
 
 tcExpr :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Expression -> Sc -> Free f JavaType
-tcExpr (ThisE) scope = undefined
+tcExpr ThisE scope = do
+  thisClass <- query scope classRe pShortest $ const True
+  case thisClass of
+    [] -> err "No class found how did this even happen"
+    [ClassDecl name _] -> return $ ObjectType name
+    _ -> err "this didn't work"
+
 tcExpr (LiteralE l) _ = tcLiteral l
 tcExpr (VariableIdE varName) scope = do
   variableDecl <- query scope re pShortest (matchDecl varName)
@@ -222,7 +288,7 @@ tcExpr (BinaryOpE expr1 op expr2) scope = do
 tcExpr (UnaryOpE op expr) scope = tcUnaryOp op expr scope
 
 tcExpr (NewE className args) scope = do
-  classDecl <- query scope re pShortest (matchDecl className)
+  classDecl <- query scope classRe pShortest (matchDecl className)
   case classDecl of
     [] -> err $ "Class " ++ className ++ " not found"
     [ClassDecl _ classScope] -> do
@@ -257,7 +323,7 @@ tcExpr (MethodInvocationE expr methodName args) scope = do
   object <- tcExpr expr scope
   case object of
     (ObjectType objectName) -> do
-      classDecl <- query scope re pShortest (matchDecl objectName)
+      classDecl <- query scope classRe pShortest (matchDecl objectName)
       case classDecl of
         [] -> err $ "Class " ++ objectName ++ " not found"
         [ClassDecl name classScope] -> do
@@ -467,7 +533,7 @@ tcLiteral NullLiteral = return Void -- Handle null literal case
 
 
 -- Tie it all together
-runTC :: [CompilationUnit] -> Either String ((), Graph Label Decl)
+runTC :: [JavaModule] -> Either String ((), Graph Label Decl)
 runTC e = un
         $ handle hErr
         $ handle_ hScope (tcProgram e) emptyGraph

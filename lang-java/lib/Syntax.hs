@@ -17,11 +17,8 @@ data JavaType
 --   | ShortType
   | ObjectType String  -- For custom object types
   | ArrayType JavaType
-  | Void
+  | Void -- Only meant for methods that return Void
   deriving (Eq, Show)
-
-
-
 
 
 -- Data type for literals
@@ -82,14 +79,20 @@ data Statement
   | ExpressionS Expression
   deriving (Eq, Show)
 
-
-
--- Data type for Compilation Unit
+-- represents a java module that you can import as a whole or in parts
+data JavaModule = JavaModule {
+  moduleName :: String,
+  moduleMembers :: [CompilationUnit]
+}
+-- Data type for Compilation Unit represnts a sinple java file containing a single class
 data CompilationUnit = CompilationUnit [ImportDeclaration] ClassDeclaration
   deriving (Eq, Show)
 
 -- Data type for Import Declaration
-newtype ImportDeclaration = ImportDeclaration String
+data ImportDeclaration = ImportDeclaration {
+  moduleNToImport :: String,
+  classToImport :: String
+}
   deriving (Eq, Show)
 
 -- Data type for Class Declaration
@@ -106,7 +109,7 @@ data ClassDeclaration =
 data Member
   = FieldDeclaration JavaType String (Maybe Expression)
   | MethodDeclaration {
-    returnType :: Maybe JavaType,
+    returnType :: Maybe JavaType,  -- Use Nothing for Void not (Just Void)
     methodName :: String,
     methodParameters :: [MethodParameter],
     methodBody :: [Statement]

@@ -2,85 +2,48 @@ module Main where
 import TypeCheck (runTC)
 
 import Syntax
+    ( ClassDeclaration(ClassDeclaration),
+      CompilationUnit(CompilationUnit),
+      ImportDeclaration(ImportDeclaration),
+      JavaType(IntType),
+      Member(FieldDeclaration, MethodDeclaration),
+      JavaModule(JavaModule) )
 
--- Class Declaration
-personClass :: ClassDeclaration
-personClass =
-  ClassDeclaration
-    { className = "Person",
-      memebers =
-        [ FieldDeclaration StringType "name" Nothing,
-          FieldDeclaration IntType "age" Nothing,
-          MethodDeclaration
-            { returnType = Nothing,
-              methodName = "Person",
-              methodParameters =
-                [ Parameter StringType "name",
-                  Parameter IntType "age"
-                ],
-              methodBody =
-                [ AssignmentS "this.name" (VariableIdE "name"),
-                  AssignmentS "this.age" (VariableIdE "age")
-                ]
-            },
-          MethodDeclaration
-            { returnType = Just StringType,
-              methodName = "getName",
-              methodParameters = [],
-              methodBody = [ReturnS (Just $ VariableIdE "name")]
-            },
-          MethodDeclaration
-            { returnType = Nothing,
-              methodName = "setName",
-              methodParameters = [Parameter StringType "name"],
-              methodBody = [AssignmentS "name" (VariableIdE "name")]
-            },
-          MethodDeclaration
-            { returnType = Just IntType,
-              methodName = "getAge",
-              methodParameters = [],
-              methodBody = [ReturnS (Just $ VariableIdE "age")]
-            },
-          MethodDeclaration
-            { returnType = Nothing,
-              methodName = "setAge",
-              methodParameters = [Parameter IntType "age"],
-              methodBody = [AssignmentS "age" (VariableIdE "age")]
-            },
-          MethodDeclaration
-            { returnType = Just StringType,
-              methodName = "toString",
-              methodParameters = [],
-              methodBody =
-                [ VariableDeclarationS StringType "result" (Just (LiteralE (StringLiteral ""))),
-                  VariableDeclarationS StringType "nameString" (Just (MethodInvocationE (VariableIdE "name") "toString" [])),
-                  VariableDeclarationS StringType "ageString" (Just (MethodInvocationE (VariableIdE "age") "toString" [])),
-                  AssignmentS "result" (BinaryOpE (VariableIdE "result") StringConcatOp (LiteralE (StringLiteral "Name: "))),
-                  AssignmentS "result" (BinaryOpE (VariableIdE "result") StringConcatOp (VariableIdE "nameString")),
-                  AssignmentS "result" (BinaryOpE (VariableIdE "result") StringConcatOp (LiteralE (StringLiteral "\n"))),
-                  AssignmentS "result" (BinaryOpE (VariableIdE "result") StringConcatOp (LiteralE (StringLiteral "Age: "))),
-                  AssignmentS "result" (BinaryOpE (VariableIdE "result") StringConcatOp (VariableIdE "ageString")),
-                  AssignmentS "result" (BinaryOpE (VariableIdE "result") StringConcatOp (LiteralE (StringLiteral "\n"))),
-                  ReturnS (Just $ VariableIdE "result")
-                ]
-            }
-        ],
-      isStatic = False,
-      constructor = Just
-        ( Constructor
-            { constructorParameters =
-                [ Parameter StringType "name",
-                  Parameter IntType "age"
-                ],
-              constructorBody =
-                [ AssignmentS "name" (VariableIdE "name"),
-                  AssignmentS "age" (VariableIdE "age")
-                ]
-            }
-        )
-    }
+
+-- Create a method
+myMethod :: Member
+myMethod = MethodDeclaration Nothing "myMethod" [] []
+
+-- Create a field
+myField :: Member
+myField = FieldDeclaration IntType "myField" Nothing
+
+-- Create a class
+myClass :: ClassDeclaration
+myClass = ClassDeclaration "MyClass" [myField, myMethod] False Nothing
+
+-- Create a module
+javaModule :: JavaModule
+javaModule = JavaModule "MyModule" [CompilationUnit [ImportDeclaration "MyModule2" "MyClass2"] myClass]
+
+
+-- Create a method
+myMethod2 :: Member
+myMethod2 = MethodDeclaration Nothing "myMethod2" [] []
+
+-- Create a field
+myField2 :: Member
+myField2 = FieldDeclaration IntType "myField2" Nothing
+
+-- Create a class
+myClass2 :: ClassDeclaration
+myClass2 = ClassDeclaration "MyClass2" [myField, myMethod] True Nothing
+
+-- Create a module
+javaModule2 :: JavaModule
+javaModule2 = JavaModule "MyModule2" [CompilationUnit [] myClass]
 
 
 main :: IO ()
 main = do
-    print $ runTC example
+    print $ runTC [javaModule]
