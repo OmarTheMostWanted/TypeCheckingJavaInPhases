@@ -9,7 +9,7 @@ import Test.HUnit
       Test(TestList) )
 
 import Syntax
-import TypeCheck (runTC, Label, Decl)
+import TypeCheck (runTC, Label, Decl, re)
 import qualified System.Exit as Exit
 import Free.Scope (Graph)
 
@@ -60,55 +60,70 @@ testUsingImport = do
       [CompilationUnit 
         [ImportDeclaration "MyModule2" "MyClass2"] 
         $ ClassDeclaration "MyClass" 
-          [FieldDeclaration IntType "myField" Nothing, MethodDeclaration (Just IntType) "myMethod" [] [ReturnS $ Just $ VariableIdE "myField"] 
+          [FieldDeclaration IntType "myField" Nothing, MethodDeclaration (Just IntType) "myMethod" [] [ReturnS $ Just $ VariableIdE "myField"]]
           False Nothing]
     javaModule2 = JavaModule "MyModule2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
 
 
+testThis :: IO ()
+testThis = do
+  print $ "running " ++ "testThis"
+  t <- runFullTCTest javaModules
+  return $ fst t
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ MethodDeclaration
+              (Just StringType)
+              "ClassB"
+              []
+              []
+          , MethodDeclaration
+              (Just StringType)
+              "sayHello"
+              [ Parameter StringType "name" ]
+              [ ReturnS (Just (BinaryOpE (LiteralE (StringLiteral "hello ")) StringConcatOp (VariableIdE "name"))) ]
+          ]
+          False
+          (Just (Constructor [] []))
+        )
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+      CompilationUnit
+        [ ImportDeclaration "ModuleB" "ClassB" ]
+        (ClassDeclaration
+          "ClassA"
+          [ FieldDeclaration IntType "x" Nothing
+          , MethodDeclaration
+              (Just IntType)
+              "ClassA"
+              []
+              [ AssignmentS FieldAccessE ThisE "x" (LiteralE (IntLiteral 10))
+              ]
+          , MethodDeclaration
+              (Just IntType)
+              "methodA"
+              []
+              [ VariableDeclarationS (ObjectType "ClassB") "o" (Just (NewE "ClassB" []))
+              , VariableDeclarationS StringType "deez" (Just (MethodInvocationE (VariableIdE "o") "sayHello" [LiteralE (StringLiteral "nutz")]))
+              , ReturnS (Just (VariableIdE "x"))
+              ]
+          ]
+          False
+          (Just (Constructor [] [AssignmentS "x" (LiteralE (IntLiteral 10))]))
+        )
+    javaModules = [JavaModule "ModuleA" [classACompilationUnit] , JavaModule "ModuleB" [classBCompilationUnit]]
 
--- testApplicationLong :: IO ()
--- testApplicationLong = do
---   t <- runTCTest $ LongE 12123
---   assertEqual "JavaLongBlahbla" JavaInt $ fst t
-
--- testApplicationDeclWithInit :: IO ()
--- testApplicationDeclWithInit = do
---   t <- runTCTest $ DeclarationInitE "x" JavaInt (IntE 12123)
---   assertEqual "JavaInt" JavaInt $ fst t
-
--- testApplicationDeclWithWrongType :: IO (String)
--- testApplicationDeclWithWrongType = do
---   runTCFail $ DeclarationInitE "x" JavaString (IntE 12123)
-  -- assertFailure "Type missmatch"
-
--- testApplicationLong :: IO ()
--- testApplicationLong = do
---   t <- runTCTest $ IntE 12123
---   assertEqual "JavaLong" JavaLong $ fst t
-
--- testApplicationLong :: IO ()
--- testApplicationLong = do
---   t <- runTCTest $ IntE 12123
---   assertEqual "JavaLong" JavaLong $ fst t
-
--- testApplicationLong :: IO ()
--- testApplicationLong = do
---   t <- runTCTest $ IntE 12123
---   assertEqual "JavaLong" JavaLong $ fst t
-
-  -- testDelcareVarTwiceErrorTest :: IO ()
-  -- testDelcareVarTwiceErrorTest = do
-  --   t <- runTCAllTest [DeclarationE "x" JavaString , AssigmentE "x" (JavaString "test")]
-  --     assertEqual "create then assign" JavaString $ fst t
 
 tests :: Test
 tests = TestList
     [ 
       "testSimpleFull" ~: testSimpleFull ,
       "testSimpleFullWithMethodBody" ~: testSimpleFullWithMethodBody
-    -- "testApplicationLong" ~: testApplicationLong ,
-    -- "testApplicationDeclWithInit" ~: testApplicationDeclWithInit,
-    -- "testApplicationDeclWithWrongType" ~: testApplicationDeclWithWrongType
     ]
 
 

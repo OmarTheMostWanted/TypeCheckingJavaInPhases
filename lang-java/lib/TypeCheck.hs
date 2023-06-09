@@ -256,7 +256,7 @@ addParamToMethodScope (Parameter t  n) methodScope = do
 
 tcExpr :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Expression -> Sc -> Free f JavaType
 tcExpr ThisE scope = do
-  thisClass <- query scope classRe pShortest $ const True
+  thisClass <- query scope classRe pShortest  $ const True
   case thisClass of
     [] -> err "No class found how did this even happen"
     [ClassDecl name _] -> return $ ObjectType name
@@ -342,13 +342,27 @@ tcExpr (MethodInvocationE expr methodName args) scope = do
 
 
 tcStatement :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Statement -> Sc -> Free f ()
-tcStatement (AssignmentS varName expr) scope = do
+tcStatement (AssignmentS varE expr) scope = do
   r <- tcExpr expr scope
-  l <- query scope re pShortest (matchDecl varName)
-  case l of
-    [] -> err $ "var " ++ varName ++ "not found"
-    [VarDecl _ t] -> if t == r then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show t -- ToDo inheritance allows sub class to be assigned to a super class
-    _ -> err "More than of decl found"
+  l <- tcExpr varE scope
+  if l == r then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show l -- ToDo inheritance allows sub class to be assigned to a super class
+    
+
+  -- case varE of
+  --   (VariableIdE varName) -> do
+  --     r <- tcExpr expr scope
+  --     l <- query scope re pShortest (matchDecl varName)
+  --     case l of
+  --       [] -> err $ "var " ++ varName ++ "not found"
+  --       [VarDecl _ t] -> if t == r then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show t -- ToDo inheritance allows sub class to be assigned to a super class
+  --       _ -> err "More than of decl found"
+  --   (ThisE) -> do
+  --     r <- tcExpr expr scope
+  --     l <- query scope re pShortest (matchDecl varName)
+  --     case l of
+  --       [] -> err $ "var " ++ varName ++ "not found"
+  --       [VarDecl _ t] -> if t == r then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show t -- ToDo inheritance allows sub class to be assigned to a super class
+  --       _ -> err "More than of decl found"
   
   
 tcStatement (IfS condExpr _ _) scope = do

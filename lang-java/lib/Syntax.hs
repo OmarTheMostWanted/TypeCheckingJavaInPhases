@@ -55,7 +55,7 @@ data Expression
     | UnaryOpE UnaryOp Expression
     -- | CastE JavaType Expression
     -- | InstanceOfE Expression JavaType
-    | ThisE  -- I need to make sure apply the correct path for the query here as only on P is allowed
+    | ThisE -- this followed by a field name
     -- | SuperE
     | NewE String [Expression]
     | FieldAccessE Expression String
@@ -63,7 +63,7 @@ data Expression
     deriving (Eq, Show)
 
 data Statement
-  = AssignmentS String Expression
+  = AssignmentS Expression Expression
   | IfS Expression [Statement] (Maybe [Statement])
 --   | ForStatement (Maybe Statement) (Maybe Expression) (Maybe Expression) [Statement]
   | WhileS Expression [Statement]
