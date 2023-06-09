@@ -2,13 +2,7 @@ module Main where
 import TypeCheck (runTC)
 
 import Syntax
-    ( ClassDeclaration(ClassDeclaration),
-      CompilationUnit(CompilationUnit),
-      ImportDeclaration(ImportDeclaration),
-      JavaType(IntType),
-      Member(FieldDeclaration, MethodDeclaration),
-      JavaModule(JavaModule) )
-
+import Syntax (Expression(FieldAccessE))
 
 {-
 
@@ -46,9 +40,55 @@ javaModule = JavaModule "MyModule"
 javaModule2 :: JavaModule
 javaModule2 = JavaModule "MyModule2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
 
+classACompilationUnit :: CompilationUnit
+classACompilationUnit =
+  CompilationUnit
+    [ ImportDeclaration "ModuleB" "ClassB" ]
+    (ClassDeclaration
+      "ClassA"
+      [ FieldDeclaration IntType "x" Nothing
+      , MethodDeclaration
+          (Just IntType)
+          "ClassA"
+          []
+          [ AssignmentS (VariableIdE "x") (LiteralE (IntLiteral 10))
+          ]
+      , MethodDeclaration
+          (Just IntType)
+          "methodA"
+          []
+          [ VariableDeclarationS (ObjectType "ClassB") "o" (Just (NewE "ClassB" []))
+          , VariableDeclarationS StringType "deez" (Just (MethodInvocationE (VariableIdE "o") "sayHello" [LiteralE (StringLiteral "nutz")]))
+          , ReturnS (Just (VariableIdE "x"))
+          ]
+      ]
+      False
+      (Just (Constructor [] [AssignmentS (FieldAccessE ThisE "x") (LiteralE (IntLiteral 10))]))
+    )
+
+classBCompilationUnit :: CompilationUnit
+classBCompilationUnit =
+  CompilationUnit
+    []
+    (ClassDeclaration
+      "ClassB"
+      [ MethodDeclaration
+          (Just StringType)
+          "ClassB"
+          []
+          []
+      , MethodDeclaration
+          (Just StringType)
+          "sayHello"
+          [ Parameter StringType "name" ]
+          [ ReturnS (Just (BinaryOpE (LiteralE (StringLiteral "hello ")) StringConcatOp (VariableIdE "name"))) ]
+      ]
+      False
+      (Just (Constructor [] []))
+    )
 
 
 
 main :: IO ()
 main = do
-    print $ runTC [javaModule , javaModule2]
+    print $ runTC [JavaModule "ModuleA" [classACompilationUnit] , JavaModule "ModuleB" [classBCompilationUnit]]

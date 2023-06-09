@@ -11,7 +11,9 @@ import Test.HUnit
 import Syntax
 import TypeCheck (runTC, Label, Decl, re)
 import qualified System.Exit as Exit
+import ParsedJava
 import Free.Scope (Graph)
+import qualified Main as ParsedJava
 
 runFullTCTest :: [JavaModule] -> IO ((), Graph Label Decl) 
 runFullTCTest = either assertFailure return . runTC
@@ -68,62 +70,15 @@ testUsingImport = do
 testThis :: IO ()
 testThis = do
   print $ "running " ++ "testThis"
-  t <- runFullTCTest javaModules
+  t <- runFullTCTest ParsedJava.testingThisNameShodowing
   return $ fst t
-  where
-    classBCompilationUnit :: CompilationUnit
-    classBCompilationUnit =
-      CompilationUnit
-        []
-        (ClassDeclaration
-          "ClassB"
-          [ MethodDeclaration
-              (Just StringType)
-              "ClassB"
-              []
-              []
-          , MethodDeclaration
-              (Just StringType)
-              "sayHello"
-              [ Parameter StringType "name" ]
-              [ ReturnS (Just (BinaryOpE (LiteralE (StringLiteral "hello ")) StringConcatOp (VariableIdE "name"))) ]
-          ]
-          False
-          (Just (Constructor [] []))
-        )
-    classACompilationUnit :: CompilationUnit
-    classACompilationUnit =
-      CompilationUnit
-        [ ImportDeclaration "ModuleB" "ClassB" ]
-        (ClassDeclaration
-          "ClassA"
-          [ FieldDeclaration IntType "x" Nothing
-          , MethodDeclaration
-              (Just IntType)
-              "ClassA"
-              []
-              [ AssignmentS FieldAccessE ThisE "x" (LiteralE (IntLiteral 10))
-              ]
-          , MethodDeclaration
-              (Just IntType)
-              "methodA"
-              []
-              [ VariableDeclarationS (ObjectType "ClassB") "o" (Just (NewE "ClassB" []))
-              , VariableDeclarationS StringType "deez" (Just (MethodInvocationE (VariableIdE "o") "sayHello" [LiteralE (StringLiteral "nutz")]))
-              , ReturnS (Just (VariableIdE "x"))
-              ]
-          ]
-          False
-          (Just (Constructor [] [AssignmentS "x" (LiteralE (IntLiteral 10))]))
-        )
-    javaModules = [JavaModule "ModuleA" [classACompilationUnit] , JavaModule "ModuleB" [classBCompilationUnit]]
-
 
 tests :: Test
 tests = TestList
     [ 
       "testSimpleFull" ~: testSimpleFull ,
-      "testSimpleFullWithMethodBody" ~: testSimpleFullWithMethodBody
+      "testSimpleFullWithMethodBody" ~: testSimpleFullWithMethodBody,
+      "testThis" ~: testThis
     ]
 
 
