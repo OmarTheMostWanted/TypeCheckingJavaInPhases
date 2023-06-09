@@ -47,11 +47,11 @@ data Decl
 
 -- Regular expression P*D must be chanced to allow for a single import edge I 
 re :: RE Label
-re = Dot (Star $ Atom P)  $ Atom D
+re = Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))  
 
 -- Regular expression P*M
 moduleRe :: RE Label
-moduleRe = Dot (Star $ Atom P) $ Atom M
+moduleRe = Atom M
 
 -- Regular expression P*Cl to resolve this
 classRe :: RE Label
@@ -101,21 +101,21 @@ tcProgram modules = do
 
 discoverModules :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule]  -> Sc -> Free f ()
 discoverModules [] _ = return ()
-discoverModules ((JavaModule n _):ms) programScope = do
+discoverModules ((JavaModule n cus):ms) programScope = do
   moduleScope <- new
   sink programScope M $ ModuleDecl n moduleScope
   edge moduleScope P programScope
+  tcFirstPhase cus moduleScope
   discoverModules ms programScope
 
 
 tcModule :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaModule -> Sc -> Free f ()
 tcModule (JavaModule n cu) programScope = do
-  moduleDecl <- query programScope Empty pShortest (const True)
-  print moduleDecl
+  moduleDecl <- query programScope moduleRe pShortest (matchDecl n)
   case moduleDecl of
     [] -> err $ "Module " ++ n ++ " not found"
     [ModuleDecl _ moduleScope] -> do
-      tcFirstPhase cu moduleScope
+      -- tcFirstPhase cu moduleScope -- this is dones during the discovery phase since
       tcSecondPhase cu moduleScope
       tcThirdPhase cu moduleScope
     _ -> err "Multiple modules found"
@@ -139,13 +139,13 @@ tcFirstPhase ((CompilationUnit _ (ClassDeclaration className _ isStatic construc
 tcImports :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [ImportDeclaration] -> Sc -> Free f ()
 tcImports [] _ = return ()
 tcImports ((ImportDeclaration m c):ims) classScope = do
-  moduleToSearch <- query classScope moduleRe pShortest (matchDecl m)
+  moduleToSearch <- query classScope (Dot (Star $ Atom P) (Atom M)) pShortest (matchDecl m)
   case moduleToSearch of
-    [] -> err $ "Module " ++ m ++ " not found"
-    [ModuleDecl _ moduleScope] -> do
-      classToImport <- query moduleScope classRe pShortest (matchDecl c)
+    [] -> err $ "Imported module " ++ m ++ " not found"
+    [ModuleDecl n moduleScope] -> do
+      classToImport <- query moduleScope (Atom Cl) pShortest (matchDecl c)
       case classToImport of
-        [] -> err $ "Class " ++ c ++ " not found in module " ++ m
+        [] -> err $ "Class " ++ c ++ " not found in module " ++ n
         [ClassDecl _ importedClassScope] -> edge classScope I importedClassScope
         _ -> err "More than one class found"
     _ -> err "More than one module found"
@@ -264,7 +264,7 @@ tcExpr ThisE scope = do
 
 tcExpr (LiteralE l) _ = tcLiteral l
 tcExpr (VariableIdE varName) scope = do
-  variableDecl <- query scope re pShortest (matchDecl varName)
+  variableDecl <- query scope re pShortest (matchDecl varName) -- TODO also include static class Names or 
   case variableDecl of
     [VarDecl _ varType] -> return varType
     [] -> err $ "Variable " ++ varName ++ " Not Found"

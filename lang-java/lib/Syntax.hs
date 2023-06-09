@@ -101,7 +101,7 @@ data ClassDeclaration =
     className :: String,
     memebers :: [Member],
     isStatic :: Bool,
-    constructor :: Maybe Constructor
+    constructor :: Maybe Constructor -- Nothing for static classes or private constructors 
   }
   deriving (Eq, Show)
 
@@ -121,7 +121,7 @@ data Constructor = Constructor {
   constructorParameters :: [MethodParameter],
   constructorBody :: [Statement]
   }
-  | DefaultConstructor -- use the super constructor
+  | DefaultConstructor -- use the super constructor ie when the class is not static but doesn't have an explist constructor
   deriving (Eq, Show)
 
 data MethodParameter = Parameter JavaType String
