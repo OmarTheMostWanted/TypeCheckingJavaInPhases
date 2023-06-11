@@ -503,7 +503,7 @@ assignment = [JavaModule "ModuleB" [CompilationUnit [] classB]]
                 , isStatic = False
                 , constructor = Just (Constructor [] [
                   -- AssignmentS  (VariableIdE "X") (LiteralE $ BooleanLiteral False)
-                  ExpressionS $ VariableIdE "x",
+                --   ExpressionS $ VariableIdE "x",
                   VariableDeclarationS BooleanType "x" Nothing
                   -- ExpressionS $ VariableIdE "x"
                 ]  ) 

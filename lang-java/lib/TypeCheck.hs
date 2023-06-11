@@ -96,7 +96,7 @@ tcProgram :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModu
 tcProgram [] = return ()
 tcProgram modules = do
   programScope <- new
-  trace "Discovering modules" discoverModules modules programScope -- discorver all modules in the program
+  trace "Discovering modules" tcModules modules programScope -- discorver all modules in the program
   mapM_ (`tcModule` programScope) modules
 
 causeMonotonicity :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Free f ()
@@ -106,14 +106,14 @@ causeMonotonicity = do
   sink programScope D $ VarDecl "y" IntType
 
 
-discoverModules :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule]  -> Sc -> Free f ()
-discoverModules [] _ = return ()
-discoverModules ((JavaModule n cus):ms) programScope = do
+tcModules :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule]  -> Sc -> Free f ()
+tcModules [] _ = return ()
+tcModules ((JavaModule n cus):ms) programScope = do
   moduleScope <- new
   sink programScope M $ ModuleDecl n moduleScope
   edge moduleScope P programScope
-  tcFirstPhase cus moduleScope
-  discoverModules ms programScope
+  tcClasses cus moduleScope
+  tcModules ms programScope
 
 
 tcModule :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaModule -> Sc -> Free f ()
@@ -122,25 +122,24 @@ tcModule (JavaModule n cu) programScope = do
   case moduleDecl of
     [] -> err $ "Module " ++ n ++ " not found"
     [ModuleDecl _ moduleScope] -> do
-      -- tcFirstPhase cu moduleScope -- this is dones during the discovery phase since
-      tcSecondPhase cu moduleScope
-      tcThirdPhase cu moduleScope
+      tcClassMemberDeclarations cu moduleScope
+      tcMemebreValues cu moduleScope
     _ -> err "Multiple modules found"
 
 
 
 -- First pass to start constructing the scope graph which involes adding declarations for all class's in the program.
-tcFirstPhase :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
-tcFirstPhase [] _ = return ()
-tcFirstPhase ((CompilationUnit _ (ClassDeclaration className _ isStatic constructor)):cus) moduleScope = do
+tcClasses :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
+tcClasses [] _ = return ()
+tcClasses ((CompilationUnit _ (ClassDeclaration className _ isStatic constructor)):cus) moduleScope = do
   classScope <- new
   edge classScope P moduleScope
   trace ("Adding class " ++ className ++ " with scope " ++ show classScope) sink moduleScope Cl $ ClassDecl className classScope
   if isStatic then 
     case constructor of 
     (Just _) -> err $ "Static class " ++ className ++ " is static but has a constructor"
-    _ -> tcFirstPhase cus moduleScope
-  else tcFirstPhase cus moduleScope
+    _ -> tcClasses cus moduleScope
+  else tcClasses cus moduleScope
 
 
 tcImports :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [ImportDeclaration] -> Sc -> Free f ()
@@ -162,9 +161,9 @@ tcImports ((ImportDeclaration m c):ims) classScope = do
 
 
 -- Second pass for all classes resolve imports and create Create sinks for all memmbers, only Left hand side only ie, don't type check field values nor method bodies and arguemts
-tcSecondPhase :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
-tcSecondPhase [] _ = return ()
-tcSecondPhase ((CompilationUnit imports (ClassDeclaration className memebers _ constructor)):cus) moduleScope = do
+tcClassMemberDeclarations :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
+tcClassMemberDeclarations [] _ = return ()
+tcClassMemberDeclarations ((CompilationUnit imports (ClassDeclaration className memebers _ constructor)):cus) moduleScope = do
   classDecl <- query moduleScope classRe pShortest (matchDecl className)
   case classDecl of
     [ClassDecl _ classScope] -> do
@@ -173,7 +172,7 @@ tcSecondPhase ((CompilationUnit imports (ClassDeclaration className memebers _ c
       addDeclsForClassMemebers memebers classScope
     [] -> err $ "Class " ++ className ++ " Not Found"
     _ -> err $ "More than one Decl of class " ++ className ++ " found"
-  tcSecondPhase cus moduleScope
+  tcClassMemberDeclarations cus moduleScope
 
 addClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe Constructor -> String -> Sc -> Free f ()
 addClassConstructor (Just (Constructor params _)) className classScope = do
@@ -213,9 +212,9 @@ checkIfTypeIsVisibleInScope _ _ = return ()
 
 
 -- Third pass, resolve name binding for right side for field declarations and method bodies
-tcThirdPhase :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
-tcThirdPhase [] _ = return ()
-tcThirdPhase ((CompilationUnit _ (ClassDeclaration className memebers _ constructor)):cus) moduleScope = do
+tcMemebreValues :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
+tcMemebreValues [] _ = return ()
+tcMemebreValues ((CompilationUnit _ (ClassDeclaration className memebers _ constructor)):cus) moduleScope = do
   classDecl <- query moduleScope classRe pShortest (matchDecl className)
   case classDecl of
     [ClassDecl _ classScope] -> do
@@ -223,7 +222,7 @@ tcThirdPhase ((CompilationUnit _ (ClassDeclaration className memebers _ construc
       tcClassMemebers memebers classScope
     [] -> err $ "Class " ++ className ++ " Not Found"
     _ -> err $ "More than one Decl of class " ++ className ++ " found"
-  tcThirdPhase cus moduleScope
+  tcMemebreValues cus moduleScope
 
 
 tcClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe Constructor -> Sc -> Free f ()
@@ -485,6 +484,12 @@ validateReturn  Nothing Nothing = return Nothing
 removeVoid :: Maybe JavaType -> Maybe JavaType
 removeVoid (Just Void) = Nothing
 removeVoid a = a
+
+
+--first fase to create 
+tcBlockFirstPhase :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Statement -> Sc -> Free f ()
+tcBlockFirstPhase (VariableDeclarationS t n _) sc = sink sc D $ VarDecl n t
+tcBlockFirstPhase _ _ = return ()
 
 
 tcBlock :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe JavaType -> Bool -> [Statement] -> Sc -> Free f (Maybe JavaType)
