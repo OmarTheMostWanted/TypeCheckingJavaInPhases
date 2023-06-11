@@ -19,7 +19,7 @@ data Label
   | I -- Import
   | M -- Module Declaration
   | Cl -- Class Declaration to resolve this keyword
-  | B -- Class Body 
+  | T -- Scope Type Declaration 
   deriving (Show, Eq)
 
 
@@ -31,6 +31,7 @@ data Decl
   | ClassDecl String Sc
   | ModuleDecl String Sc
   | ConstructorDecl String [MethodParameter]
+  | ScopeType String -- To help I dentifie which type's scope this is declared in, helps later for multiple classes in one file and nested class's, as all classDecls can be in the same parent scope and can still be found from their own scope
   deriving (Show, Eq)
 
 -- projTy :: Decl -> JavaType
@@ -42,7 +43,7 @@ data Decl
 
 -- Regular expression P*D must be chanced to allow for a single import edge I 
 re :: RE Label
-re = Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))  
+re = Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))
 
 -- Regular expression P*M
 moduleRe :: RE Label
@@ -73,13 +74,16 @@ matchDecl x (MethodDecl x' _ _) = x == x'
 matchDecl x (ClassDecl x' _) = x == x'
 matchDecl x (ConstructorDecl t _) = x == t
 matchDecl x (ModuleDecl x' _) = x == x'
+matchDecl x (ScopeType x') = x == x'
 
 
 matchConstructor :: Decl -> Bool
 matchConstructor (ConstructorDecl _ _)  = True
 matchConstructor _ = False
 
-
+matchScopeType :: Decl -> Bool
+matchScopeType (ScopeType _) = True
+matchScopeType _ = False
 
 
 -- Scope Graph Library Convenience
@@ -92,123 +96,134 @@ new = S.new @_ @Label @Decl
 sink :: Scope Sc Label Decl < f => Sc -> Label -> Decl -> Free f ()
 sink = S.sink @_ @Label @Decl
 
-tcProgram :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule] -> Free f ()
-tcProgram [] = return ()
-tcProgram modules = do
-  programScope <- new
-  trace "Discovering modules" tcModules modules programScope -- discorver all modules in the program
-  mapM_ (`tcModule` programScope) modules
-
+-- an example to cause the infomous simcity error
 causeMonotonicity :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Free f ()
-causeMonotonicity = do 
+causeMonotonicity = do
   programScope <- new
   query programScope re pShortest (matchDecl "y")
   sink programScope D $ VarDecl "y" IntType
 
 
-tcModules :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule]  -> Sc -> Free f ()
-tcModules [] _ = return ()
-tcModules ((JavaModule n cus):ms) programScope = do
+-- Phase 1: Step 0: start point for the type checker
+tcProgram :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule] -> Free f ()
+tcProgram [] = return ()
+tcProgram modules = do
+  programScope <- new
+  mapM_ (`discoverModules` programScope) modules  -- Phase 1 (Module and Class Declarations)
+  mapM_ (`tcModule` programScope) modules -- Phase 2 (Class memeber Declaration and left side validation)
+
+-- Phase 1: Step 1: Discover all Modules
+discoverModules :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaModule  -> Sc -> Free f ()
+discoverModules (JavaModule n cus) programScope = do
   moduleScope <- new
-  sink programScope M $ ModuleDecl n moduleScope
+  trace ("Adding Module Declaration " ++ show (ModuleDecl n moduleScope) ++ " to scope " ++ show programScope) sink programScope M $ ModuleDecl n moduleScope
   edge moduleScope P programScope
-  tcClasses cus moduleScope
-  tcModules ms programScope
+  mapM_ (`discoverModuleClasses` moduleScope) cus
 
 
+-- Phase 1: Step 2: Discover all classes in a module
+discoverModuleClasses :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
+discoverModuleClasses (CompilationUnit _ (ClassDeclaration className _ isStatic constructor)) moduleScope = do
+  classScope <- new
+  edge classScope P moduleScope
+  trace ("Giving scope " ++ show classScope ++ " type " ++ className)
+    sink classScope 
+
+  trace ("Adding Class Declaration " ++ show (ClassDecl className classScope) ++ " to scope " ++ show moduleScope)
+    sink moduleScope Cl $ ClassDecl className classScope
+  when isStatic $ case constructor of
+    (Just _) -> err $ "Static class " ++ className ++ " is static but has a constructor"
+    _ -> return ()
+
+-- Phase 2: Per Module, Discover all class members, add imports, validate class member types
 tcModule :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaModule -> Sc -> Free f ()
 tcModule (JavaModule n cu) programScope = do
   moduleDecl <- query programScope moduleRe pShortest (matchDecl n)
   case moduleDecl of
     [] -> err $ "Module " ++ n ++ " not found"
     [ModuleDecl _ moduleScope] -> do
-      tcClassMemberDeclarations cu moduleScope
+      mapM_ (`tcClassMemberDeclarations` moduleScope) cu
       tcMemebreValues cu moduleScope
-    _ -> err "Multiple modules found"
+    _ -> err $ "Ambiguity module name " ++ n
 
 
+-- Phase 2: Per Class, Validate imports, Add class constructor, add Members
+tcClassMemberDeclarations :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
+tcClassMemberDeclarations (CompilationUnit imports (ClassDeclaration className memebers _ constructor)) moduleScope = do
+  classDecl <- query moduleScope classRe pShortest (matchDecl className)
+  case classDecl of
+    [ClassDecl _ classScope] -> do
+      trace ("Resolving imports for class " ++ className ++ " with scope " ++ show classScope)
+        mapM_ (`tcImports` classScope) imports -- step 1
 
--- First pass to start constructing the scope graph which involes adding declarations for all class's in the program.
-tcClasses :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
-tcClasses [] _ = return ()
-tcClasses ((CompilationUnit _ (ClassDeclaration className _ isStatic constructor)):cus) moduleScope = do
-  classScope <- new
-  edge classScope P moduleScope
-  trace ("Adding class " ++ className ++ " with scope " ++ show classScope) sink moduleScope Cl $ ClassDecl className classScope
-  if isStatic then 
-    case constructor of 
-    (Just _) -> err $ "Static class " ++ className ++ " is static but has a constructor"
-    _ -> tcClasses cus moduleScope
-  else tcClasses cus moduleScope
+      addClassConstructor constructor className classScope
 
+      trace ("Adding declarations for class " ++ className ++ " members with scope " ++ show classScope)
+        mapM_ (`addDeclsForClassMemebers` classScope) memebers
 
-tcImports :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [ImportDeclaration] -> Sc -> Free f ()
-tcImports [] _ = return ()
-tcImports ((ImportDeclaration m c):ims) classScope = do
+    [] -> err $ "Class " ++ className ++ " Not Found"
+    _ -> err $ "Ambiguity Class Name " ++ className
+
+-- Phase 2: Step 1 (Resove Imports)
+tcImports :: (Functor f, Error String < f, Scope Sc Label Decl < f) => ImportDeclaration -> Sc -> Free f ()
+tcImports (ImportDeclaration m c) classScope = do
   moduleToSearch <- query classScope (Dot (Star $ Atom P) (Atom M)) pShortest (matchDecl m)
   case moduleToSearch of
     [] -> err $ "Imported module " ++ m ++ " not found"
     [ModuleDecl n moduleScope] -> do
       classToImport <- query moduleScope (Atom Cl) pShortest (matchDecl c)
       case classToImport of
-        [] -> err $ "Class " ++ c ++ " not found in module " ++ n
-        [ClassDecl c importedClassScope] -> trace ("Imported class " ++ c ++ " into scope " ++ show classScope) edge classScope I importedClassScope
-        _ -> err "More than one class found"
-    _ -> err "More than one module found"
-  tcImports ims classScope
+        [] -> err $ "Imported Class " ++ c ++ " not found in module " ++ n
+        [ClassDecl c importedClassScope] -> 
+          trace ("Imported class " ++ c ++ " into scope " ++ show classScope)
+            edge classScope I importedClassScope
+        _ -> err $ "Ambiguity imported class name " ++ c
+    _ -> err $ "Ambiguity imported module name" ++ m
 
-
-
-
--- Second pass for all classes resolve imports and create Create sinks for all memmbers, only Left hand side only ie, don't type check field values nor method bodies and arguemts
-tcClassMemberDeclarations :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [CompilationUnit] -> Sc -> Free f ()
-tcClassMemberDeclarations [] _ = return ()
-tcClassMemberDeclarations ((CompilationUnit imports (ClassDeclaration className memebers _ constructor)):cus) moduleScope = do
-  classDecl <- query moduleScope classRe pShortest (matchDecl className)
-  case classDecl of
-    [ClassDecl _ classScope] -> do
-      tcImports imports classScope -- resolve imports first
-      addClassConstructor constructor className classScope
-      addDeclsForClassMemebers memebers classScope
-    [] -> err $ "Class " ++ className ++ " Not Found"
-    _ -> err $ "More than one Decl of class " ++ className ++ " found"
-  tcClassMemberDeclarations cus moduleScope
-
+-- Pase 2: Step 2 (Validate Constructor Declaration)
 addClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe Constructor -> String -> Sc -> Free f ()
 addClassConstructor (Just (Constructor params _)) className classScope = do
-  mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
-  sink classScope D $ ConstructorDecl className params
-addClassConstructor (Just DefaultConstructor) className classScope = sink classScope D $ ConstructorDecl className []
+  trace ("Validating Constuctor parameter types " ++ show [ t | Parameter t _ <-  params] ++ " for class " ++ className)
+    mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
+  trace ("Adding Constructor Declaration " ++ show (ConstructorDecl className params) ++ " to scope " ++ show classScope) 
+    sink classScope D $ ConstructorDecl className params
+addClassConstructor (Just DefaultConstructor) className classScope = 
+  trace ("Adding Defualt Constructor Declaration " ++ show (ConstructorDecl className []) ++ " to scope " ++ show classScope)
+    sink classScope D $ ConstructorDecl className []
 addClassConstructor Nothing _ _ = return ()
 
-addDeclsForClassMemebers :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [Member] -> Sc -> Free f ()
-addDeclsForClassMemebers [] _ = return ()
-addDeclsForClassMemebers (m:ms) classScope =
+-- Pase 2: Step 3 (Validate Left side class members)
+addDeclsForClassMemebers :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Member -> Sc -> Free f ()
+addDeclsForClassMemebers m classScope =
   case m of
     (FieldDeclaration ft name _) -> do
-      checkIfTypeIsVisibleInScope ft classScope
-      trace ("Added Field " ++ name ++ " to scope " ++ show classScope) sink classScope D $ VarDecl name ft
-      addDeclsForClassMemebers ms classScope
+      trace ("Validating Field type " ++ show ft ++ " in scope " ++ show classScope)
+        checkIfTypeIsVisibleInScope ft classScope
+      trace ("Added Field " ++ show (VarDecl name ft) ++ " to scope " ++ show classScope)
+        sink classScope D $ VarDecl name ft
 
     (MethodDeclaration Nothing name params _) -> do
-      mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
-      trace ("Added method " ++ name ++ " to scope " ++ show classScope)sink classScope D $ MethodDecl name Nothing params
-      addDeclsForClassMemebers ms classScope
+      trace ("Validating Method parameter types " ++ show [ t | Parameter t _ <-  params] ++ " in scope " ++ show classScope)
+        mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
+      trace ("Added Method " ++ show (MethodDecl name Nothing params) ++ " to scope " ++ show classScope)
+        sink classScope D $ MethodDecl name Nothing params
 
     (MethodDeclaration (Just rt) name params _) -> do
-      checkIfTypeIsVisibleInScope rt classScope
+      trace ("Validating Method parameter types " ++ show [ t | Parameter t _ <-  params] ++ " and return type " ++ show rt ++ " in scope " ++ show classScope)
+        checkIfTypeIsVisibleInScope rt classScope
       mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
-      trace ("Added method " ++ name ++ " to scope " ++ show classScope) sink classScope D $ MethodDecl name (Just rt) params
-      addDeclsForClassMemebers ms classScope
+      trace ("Added Method " ++ show (MethodDecl name (Just rt) params) ++ " to scope " ++ show classScope)
+        sink classScope D $ MethodDecl name (Just rt) params
 
+-- checks if a type is visible in scope
 checkIfTypeIsVisibleInScope :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaType -> Sc -> Free f ()
 checkIfTypeIsVisibleInScope (ObjectType typeName) classScope = do
-  match <- query classScope classRe pShortest (matchDecl typeName)
+  match <- query classScope re pShortest (const True)
   case match of
     [] -> err $ "Type " ++ typeName ++ " doesn't exist in scope"
     [ClassDecl _ _] -> return ()
-    _ -> err $ "More than one declaration of " ++ typeName
-checkIfTypeIsVisibleInScope _ _ = return () 
+    _ -> err $ "More than one declaration of " ++ typeName ++ show match
+checkIfTypeIsVisibleInScope _ _ = return ()
 
 
 -- Third pass, resolve name binding for right side for field declarations and method bodies
@@ -231,7 +246,7 @@ tcClassConstructor (Just (Constructor params body)) classScope = do
   edge methodScope P classScope
   mapM_ (`addParamToMethodScope` methodScope) params
   returnType <- tcBlock Nothing False body methodScope
-  case removeVoid returnType of 
+  case removeVoid returnType of
     Nothing -> return ()
     _ -> err "Constructor returns something"
 
@@ -239,7 +254,7 @@ tcClassConstructor _ _ = return ()
 
 tcClassMemebers :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [Member] -> Sc -> Free f ()
 tcClassMemebers [] _ = return ()
-tcClassMemebers (m:ms) classScope = 
+tcClassMemebers (m:ms) classScope =
   case m of
     (FieldDeclaration ft name (Just val)) -> do
       actualType <- tcExpr val classScope
@@ -270,11 +285,11 @@ tcExpr ThisE scope = do
 
 tcExpr (LiteralE l) _ = tcLiteral l
 tcExpr (VariableIdE varName) scope = do
-  variableDecl <- trace ("Searching for " ++ varName ++ " in scope " ++ show scope)query scope re pShortest (matchDecl varName) -- TODO also include static class Names or 
+  variableDecl <- trace ("Searching for " ++ varName ++ " in scope " ++ show scope) query scope re pShortest (matchDecl varName) -- TODO also include static class Names or 
   case variableDecl of
     [VarDecl _ varType] -> return varType
     [] -> err $ "Variable " ++ varName ++ " Not Found: " ++ show variableDecl
-    _ -> err $ "More than one Decl of variable " ++ varName ++ " found" 
+    _ -> err $ "More than one Decl of variable " ++ varName ++ " found"
 
 tcExpr (MethodCallE methodName args) scope = do
   methodDecl <- query scope re pShortest (matchDecl methodName)
@@ -288,7 +303,7 @@ tcExpr (MethodCallE methodName args) scope = do
     [] -> err $ "Method " ++ methodName ++ " Not Found"
     _ -> err $ "More than one Decl of method " ++ methodName ++ " found"  --  TODO  overriding and overlaoding????? an adtional step to find a method that matches the used args
 
-tcExpr (BinaryOpE expr1 op expr2) scope = do 
+tcExpr (BinaryOpE expr1 op expr2) scope = do
   tcBinaryOp op expr1 expr2 scope
 
 tcExpr (UnaryOpE op expr) scope = tcUnaryOp op expr scope
@@ -304,9 +319,9 @@ tcExpr (NewE className args) scope = do
         [ConstructorDecl _ params] -> do
           tcMethodArgs params args scope
           return $ ObjectType className
-        _ -> err $ "More than one constructor found which is not allowed for now for class " ++ className 
+        _ -> err $ "More than one constructor found which is not allowed for now for class " ++ className
     _ -> err $ "More than one class definition found of " ++ className
- 
+
 tcExpr (FieldAccessE expr fieldName) scope = do
   object <- tcExpr expr scope
   case object of
@@ -355,15 +370,15 @@ tcStatement (AssignmentS varE expr) scope = do
     (VariableIdE _) -> helper r
     (FieldAccessE _ _) -> helper r
     _ -> err $ "Left hand assignemnt expresion is not allow to be " ++ show varE
-    
+
     where
     helper r = do
       l <- tcExpr varE scope
       case l of
         (ObjectType _) -> if l == r  || expr == LiteralE NullLiteral then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show l -- Allow null values for class's
         _ -> if l == r then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show l -- ToDo inheritance allows sub class to be assigned to a super class
-    
-  
+
+
 tcStatement (IfS condExpr _ _) scope = do
   cond <- tcExpr condExpr scope
   when (cond /= BooleanType)
@@ -382,9 +397,9 @@ tcStatement (VariableDeclarationS varType varName maybeInitializer) scope = do
     Just e -> do
       r <- tcExpr e scope
       if r == varType then sink scope D $ VarDecl varName varType else err $ "Type missmatch expected: " ++ show varType ++ " but got " ++ show r
-      
 
-tcStatement (ReturnS maybeExpr) scope = 
+
+tcStatement (ReturnS maybeExpr) scope =
   case maybeExpr of
     Nothing -> return ()
     Just e -> do
@@ -396,7 +411,7 @@ tcStatement (ReturnS maybeExpr) scope =
 tcStatement BreakS _ = return ()
 tcStatement ContinueS _ = return ()
 tcStatement (ExpressionS expr) scope = do
-  tcExpr expr scope 
+  tcExpr expr scope
   return ()
 
 
@@ -406,33 +421,33 @@ tcUnaryOp Not e sc = do
   if actual == BooleanType then return BooleanType else err "Calling Not on  not a bool"
 
 tcBinaryOp :: (Functor f, Error String < f, Scope Sc Label Decl < f) => BinaryOp -> Expression -> Expression -> Sc -> Free f JavaType
-tcBinaryOp EqualityOp l r sc = do 
+tcBinaryOp EqualityOp l r sc = do
   tcExpr l sc
   tcExpr r sc
   return BooleanType
 
-tcBinaryOp BooleanOp l r sc = do 
+tcBinaryOp BooleanOp l r sc = do
   actualL <- tcExpr l sc
   actualR <- tcExpr r sc
-  if actualL == BooleanType then 
-    if actualR == BooleanType 
-      then return BooleanType 
+  if actualL == BooleanType then
+    if actualR == BooleanType
+      then return BooleanType
       else err "Right side is not a boolean"
   else  err "Left side is not a boolean"
 
-tcBinaryOp ArithmaticOp l r sc = do 
+tcBinaryOp ArithmaticOp l r sc = do
   actualL <- tcExpr l sc
   actualR <- tcExpr r sc
-  if isNumber actualL then 
-    if isNumber actualR 
-      then return $ getResultType actualL actualR  
+  if isNumber actualL then
+    if isNumber actualR
+      then return $ getResultType actualL actualR
       else err "Right side is not a number"
   else  err "Left side is not a number"
 
-tcBinaryOp StringConcatOp l r sc = do 
+tcBinaryOp StringConcatOp l r sc = do
   actualL <- tcExpr l sc
   actualR <- tcExpr r sc
-  if actualL == StringType then 
+  if actualL == StringType then
     if actualR == StringType
       then return StringType
       else err "Right side is not a string"
@@ -474,7 +489,7 @@ tcMethodArgs params args classScope =
 validateReturn :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe JavaType -> Maybe JavaType -> Free f (Maybe JavaType)
 validateReturn Nothing (Just Void) = return (Just Void)
 validateReturn (Just Void) _ = err "tc bug: method must not return Just Void, use Nothing for void methods"
-validateReturn Nothing (Just b) = err $ "Expected Return Nothing" ++  "but got " ++ show b 
+validateReturn Nothing (Just b) = err $ "Expected Return Nothing" ++  "but got " ++ show b
 validateReturn  (Just a) Nothing = err $ "Expected Return " ++ show a ++  "but got Nothing"
 validateReturn  (Just a) (Just b) = if a == b then return (Just a) else err $ "Expected Return " ++ show a ++  "but got " ++ show b
 validateReturn  Nothing Nothing = return Nothing
@@ -518,7 +533,7 @@ tcBlock rt l [IfS e t Nothing] scope = do -- when the retun type is not void, af
   case rt of
     Nothing -> validateReturn rt trueBranch
     _ -> err $ "Missing return statemnt after if: " ++ show [IfS e t Nothing] -- when we return something in if but nothing in the rest of the body
-  
+
 -- Here, we can either return inside the if or return somewhere under it.
 tcBlock rt l [IfS e t (Just f)] scope = do
   tcStatement (IfS e t (Just f)) scope
@@ -607,7 +622,7 @@ tcNestedBlock _ [ReturnS Nothing] _ = return $ Just Void
 tcNestedBlock _ [ReturnS (Just e)] scope = do
   actual <- tcExpr e scope
   case actual of
-    Void -> err "Can't return void" 
+    Void -> err "Can't return void"
     _ -> return $ Just actual
 
 tcNestedBlock _ ((ReturnS _):_) _ = err "Unreachable code after return statemnt" -- it's hard to detect unreachble code from outside nested blocks
@@ -626,7 +641,7 @@ tcNestedBlock l [IfS e t Nothing] scope = do
   edge trueBranchScope P scope
   tcNestedBlock l t trueBranchScope
 
-  
+
 tcNestedBlock l [IfS e t (Just f)] scope = do
   tcStatement (IfS e t (Just f)) scope
   trueBranchScope <- new
@@ -685,7 +700,7 @@ tcNestedBlock l ((WhileS e loopBody):rest) scope = do
       restReturn <- tcNestedBlock l rest scope
       validateSameReturn loopReturn restReturn
     Nothing -> do
-      tcNestedBlock l rest scope 
+      tcNestedBlock l rest scope
 
 
 tcNestedBlock l ((VariableDeclarationS t s e):rest) scope = do

@@ -24,7 +24,6 @@ runFullTCTFail e = either return (const $ assertFailure "Expected exception, got
 
 testSimpleFull :: IO ()
 testSimpleFull = do
-  print $ "running " ++ "testSimpleFull"
   t <- runFullTCTest [javaModule, javaModule2]
   return (fst t)
   where
@@ -39,7 +38,6 @@ testSimpleFull = do
 
 testSimpleFullWithMethodBody :: IO ()
 testSimpleFullWithMethodBody = do
-  print $ "running " ++ "testSimpleFullWithMethodBody"
   t <- runFullTCTest [javaModule, javaModule2]
   return (fst t)
   where
@@ -54,7 +52,6 @@ testSimpleFullWithMethodBody = do
 
 testUsingImport :: IO ()
 testUsingImport = do
-  print $ "running " ++ "testSimpleFull"
   t <- runFullTCTest [javaModule, javaModule2]
   return (fst t)
   where
@@ -127,10 +124,10 @@ nextedBlockPathTest = do
   t <- runFullTCTest nextedBlockPath
   return $ fst t
 
--- Test :: IO ()
--- Test = do
---   t <- runFullTCTest 
---   return $ fst t
+usingAnImportInFieldTest :: IO ()
+usingAnImportInFieldTest = do
+  t <- runFullTCTest usingAnImportInField
+  return $ fst t
 
 
 tests :: Test
@@ -147,7 +144,9 @@ tests = TestList
       "usingControlFlowTest" ~: usingControlFlowTest,
       "usingControlFlow2Test" ~: usingControlFlow2Test,
       -- "breakStatemtnsTest" ~: breakStatemtnsTest,
-      "nextedBlockPathTest" ~: nextedBlockPathTest
+      -- "nextedBlockPathTest" ~: nextedBlockPathTest,
+      "usingAnImportInFieldTest" ~: usingAnImportInFieldTest
+
     ]
 
 

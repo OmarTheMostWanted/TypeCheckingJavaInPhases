@@ -511,7 +511,48 @@ assignment = [JavaModule "ModuleB" [CompilationUnit [] classB]]
 
 
 
+{-
+
+
+package ModuleB;
+
+public class ClassB {
+
+}
+
+
+package ModuleA;
+
+import ModuleB.ClassB;
+
+public class ClassA {
+    public ClassB x;
+}
+
+
+
+-}
+
+-- Haskell code:
+usingAnImportInField :: [JavaModule]
+usingAnImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "ModuleB" "ClassB" ]
+            (ClassDeclaration "ClassA" [FieldDeclaration (ObjectType "ClassB") "x" Nothing] False (Just DefaultConstructor))
+
+
+
+
 
 main :: IO ()
 main = do
-    print $ runTC assignment
+    print $ runTC usingAnImportInField
