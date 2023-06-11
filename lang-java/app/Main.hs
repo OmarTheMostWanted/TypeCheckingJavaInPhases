@@ -551,6 +551,45 @@ usingAnImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModul
 
 
 
+{-
+
+
+package ModuleB;
+
+public class ClassA {
+
+}
+
+
+package ModuleA;
+
+import ModuleB.ClassA;
+
+public class ClassA {
+    public ClassA x;
+}
+
+
+
+-}
+
+-- Haskell code:
+usingAShadowedImportInField :: [JavaModule]
+usingAShadowedImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassA" [] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "ModuleB" "ClassA" ]
+            (ClassDeclaration "ClassA" [FieldDeclaration (ObjectType "ClassA") "x" Nothing] False (Just DefaultConstructor))
+
+
 
 
 main :: IO ()
