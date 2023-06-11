@@ -236,6 +236,7 @@ executable java
                         containers >= 0.6.5.1,
                         transformers >= 0.5.6.2,
                         java-lib
+
     hs-source-dirs:     lang-java/app
     default-language:   Haskell2010
     default-extensions: TypeApplications
@@ -256,5 +257,6 @@ test-suite java-test
                         hefty-algebras,
                         java-lib
     hs-source-dirs:     lang-java/tests
+                        lang-java/tests/JavaExamples
     default-language:   Haskell2010
-    other-modules:      
+    other-modules:      ParsedJava

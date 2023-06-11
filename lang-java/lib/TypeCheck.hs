@@ -1,6 +1,5 @@
 module TypeCheck where
 
-import Data.Functor
 import Data.Regex
 
 import Free
@@ -11,20 +10,16 @@ import Syntax
 
 import Control.Monad
 
-import Free.Logic.Exists
-import GHC.ExecutionStack (Location(objectName))
-import qualified Control.Monad as Data.Foldable
-import Control.Arrow (ArrowLoop(loop))
-import Control.Monad.Trans.Accum (accum)
-import GHC.Base (Module)
+import Debug.Trace
 
 
 data Label
   = P -- Lexical Parent Label
-  | D -- Declaration
+  | D -- Variable Declaration
   | I -- Import
   | M -- Module Declaration
   | Cl -- Class Declaration to resolve this keyword
+  | B -- Class Body 
   deriving (Show, Eq)
 
 
@@ -80,6 +75,11 @@ matchDecl x (ConstructorDecl t _) = x == t
 matchDecl x (ModuleDecl x' _) = x == x'
 
 
+matchConstructor :: Decl -> Bool
+matchConstructor (ConstructorDecl _ _)  = True
+matchConstructor _ = False
+
+
 
 
 -- Scope Graph Library Convenience
@@ -96,8 +96,15 @@ tcProgram :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModu
 tcProgram [] = return ()
 tcProgram modules = do
   programScope <- new
-  discoverModules modules programScope -- discorver all modules in the program
+  trace "Discovering modules" discoverModules modules programScope -- discorver all modules in the program
   mapM_ (`tcModule` programScope) modules
+
+causeMonotonicity :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Free f ()
+causeMonotonicity = do 
+  programScope <- new
+  query programScope re pShortest (matchDecl "y")
+  sink programScope D $ VarDecl "y" IntType
+
 
 discoverModules :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule]  -> Sc -> Free f ()
 discoverModules [] _ = return ()
@@ -128,7 +135,7 @@ tcFirstPhase [] _ = return ()
 tcFirstPhase ((CompilationUnit _ (ClassDeclaration className _ isStatic constructor)):cus) moduleScope = do
   classScope <- new
   edge classScope P moduleScope
-  sink moduleScope Cl $ ClassDecl className classScope
+  trace ("Adding class " ++ className ++ " with scope " ++ show classScope) sink moduleScope Cl $ ClassDecl className classScope
   if isStatic then 
     case constructor of 
     (Just _) -> err $ "Static class " ++ className ++ " is static but has a constructor"
@@ -146,7 +153,7 @@ tcImports ((ImportDeclaration m c):ims) classScope = do
       classToImport <- query moduleScope (Atom Cl) pShortest (matchDecl c)
       case classToImport of
         [] -> err $ "Class " ++ c ++ " not found in module " ++ n
-        [ClassDecl _ importedClassScope] -> edge classScope I importedClassScope
+        [ClassDecl c importedClassScope] -> trace ("Imported class " ++ c ++ " into scope " ++ show classScope) edge classScope I importedClassScope
         _ -> err "More than one class found"
     _ -> err "More than one module found"
   tcImports ims classScope
@@ -181,18 +188,18 @@ addDeclsForClassMemebers (m:ms) classScope =
   case m of
     (FieldDeclaration ft name _) -> do
       checkIfTypeIsVisibleInScope ft classScope
-      sink classScope D $ VarDecl name ft
+      trace ("Added Field " ++ name ++ " to scope " ++ show classScope) sink classScope D $ VarDecl name ft
       addDeclsForClassMemebers ms classScope
 
     (MethodDeclaration Nothing name params _) -> do
       mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
-      sink classScope D $ MethodDecl name Nothing params
+      trace ("Added method " ++ name ++ " to scope " ++ show classScope)sink classScope D $ MethodDecl name Nothing params
       addDeclsForClassMemebers ms classScope
 
     (MethodDeclaration (Just rt) name params _) -> do
       checkIfTypeIsVisibleInScope rt classScope
       mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
-      sink classScope D $ MethodDecl name (Just rt) params
+      trace ("Added method " ++ name ++ " to scope " ++ show classScope) sink classScope D $ MethodDecl name (Just rt) params
       addDeclsForClassMemebers ms classScope
 
 checkIfTypeIsVisibleInScope :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaType -> Sc -> Free f ()
@@ -224,8 +231,8 @@ tcClassConstructor (Just (Constructor params body)) classScope = do
   methodScope <- new
   edge methodScope P classScope
   mapM_ (`addParamToMethodScope` methodScope) params
-  returnType <- tcBlock False body methodScope
-  case returnType of 
+  returnType <- tcBlock Nothing False body methodScope
+  case removeVoid returnType of 
     Nothing -> return ()
     _ -> err "Constructor returns something"
 
@@ -244,8 +251,8 @@ tcClassMemebers (m:ms) classScope =
       methodScope <- new
       edge methodScope P classScope
       mapM_ (`addParamToMethodScope` methodScope) params
-      actual <- tcBlock False body methodScope
-      if rt == actual then tcClassMemebers ms classScope else err "Method declared return type and actual return type don't match"
+      actual <- tcBlock rt False body methodScope
+      if rt == removeVoid actual then tcClassMemebers ms classScope else err $ "Method declared return type and actual return type don't match expected: " ++ show rt ++ " actual: " ++ show actual
       tcClassMemebers ms classScope
 
 
@@ -256,18 +263,18 @@ addParamToMethodScope (Parameter t  n) methodScope = do
 
 tcExpr :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Expression -> Sc -> Free f JavaType
 tcExpr ThisE scope = do
-  thisClass <- query scope classRe pShortest  $ const True
-  case thisClass of
-    [] -> err "No class found how did this even happen"
-    [ClassDecl name _] -> return $ ObjectType name
-    _ -> err "this didn't work"
+  constructorDecl <- query scope re pShortest matchConstructor
+  case constructorDecl of
+    [] -> err $ "Using {this} in a static class" ++ show scope
+    [ConstructorDecl name _] -> return $ ObjectType name
+    _ -> err $ "more than one constructor found when only one is allowed" ++ show constructorDecl
 
 tcExpr (LiteralE l) _ = tcLiteral l
 tcExpr (VariableIdE varName) scope = do
-  variableDecl <- query scope re pShortest (matchDecl varName) -- TODO also include static class Names or 
+  variableDecl <- trace ("Searching for " ++ varName ++ " in scope " ++ show scope)query scope re pShortest (matchDecl varName) -- TODO also include static class Names or 
   case variableDecl of
     [VarDecl _ varType] -> return varType
-    [] -> err $ "Variable " ++ varName ++ " Not Found"
+    [] -> err $ "Variable " ++ varName ++ " Not Found: " ++ show variableDecl
     _ -> err $ "More than one Decl of variable " ++ varName ++ " found" 
 
 tcExpr (MethodCallE methodName args) scope = do
@@ -280,7 +287,7 @@ tcExpr (MethodCallE methodName args) scope = do
       tcMethodArgs params args scope
       return Void
     [] -> err $ "Method " ++ methodName ++ " Not Found"
-    _ -> err $ "More than one Decl of method " ++ methodName ++ " found"  -- what about method overriding and overlaoding?????
+    _ -> err $ "More than one Decl of method " ++ methodName ++ " found"  --  TODO  overriding and overlaoding????? an adtional step to find a method that matches the used args
 
 tcExpr (BinaryOpE expr1 op expr2) scope = do 
   tcBinaryOp op expr1 expr2 scope
@@ -305,7 +312,7 @@ tcExpr (FieldAccessE expr fieldName) scope = do
   object <- tcExpr expr scope
   case object of
     (ObjectType objectName) -> do
-      classDecl <- query scope re pShortest (matchDecl objectName)
+      classDecl <- query scope classRe pShortest (matchDecl objectName)
       case classDecl of
         [] -> err $ "Class " ++ objectName ++ " not found"
         [ClassDecl name classScope] -> do
@@ -314,7 +321,7 @@ tcExpr (FieldAccessE expr fieldName) scope = do
             [] -> err $ "Field " ++ fieldName ++ " not found in class " ++ name
             [VarDecl _ t] -> return t
             _ -> err "More than on deffiniton found"
-        _ -> err $ "More than one class found with name " ++ objectName ++ " while resolving " ++ show (FieldAccessE expr fieldName)
+        _ -> err $ "More than one class found with name " ++ objectName ++ " while resolving " ++ show (FieldAccessE expr fieldName) ++ show classDecl
     _ -> err $ "Name found but was not for an object, it was a " ++ show object
 
 
@@ -345,7 +352,7 @@ tcStatement :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Stateme
 tcStatement (AssignmentS varE expr) scope = do
   r <- tcExpr expr scope
   case varE of
-    ThisE -> helper r
+    -- ThisE -> helper r
     (VariableIdE _) -> helper r
     (FieldAccessE _ _) -> helper r
     _ -> err $ "Left hand assignemnt expresion is not allow to be " ++ show varE
@@ -353,7 +360,9 @@ tcStatement (AssignmentS varE expr) scope = do
     where
     helper r = do
       l <- tcExpr varE scope
-      if l == r then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show l -- ToDo inheritance allows sub class to be assigned to a super class
+      case l of
+        (ObjectType _) -> if l == r  || expr == LiteralE NullLiteral then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show l -- Allow null values for class's
+        _ -> if l == r then return () else err $ "Type missmatch trying to assgin " ++ show r ++ " to"  ++ show l -- ToDo inheritance allows sub class to be assigned to a super class
     
   
 tcStatement (IfS condExpr _ _) scope = do
@@ -366,7 +375,7 @@ tcStatement (WhileS condExpr _) scope = do
   when (cond /= BooleanType)
     $ err $ "While loop condtion is not a bool but is " ++ show cond
 
-tcStatement (VariableDeclarationS Void varName _) scope = err $ "Variable " ++ varName ++ " can't be of type void"
+tcStatement (VariableDeclarationS Void varName _) _ = err $ "Variable " ++ varName ++ " can't be of type void"
 
 tcStatement (VariableDeclarationS varType varName maybeInitializer) scope = do
   case maybeInitializer of
@@ -463,64 +472,233 @@ tcMethodArgs params args classScope =
     else err "Number of arguments does not match number of parameters"
 
 
-tcBlock :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Bool -> [Statement] -> Sc -> Free f (Maybe JavaType)
-tcBlock _ [] _ = return Nothing
+validateReturn :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe JavaType -> Maybe JavaType -> Free f (Maybe JavaType)
+validateReturn Nothing (Just Void) = return (Just Void)
+validateReturn (Just Void) _ = err "tc bug: method must not return Just Void, use Nothing for void methods"
+validateReturn Nothing (Just b) = err $ "Expected Return Nothing" ++  "but got " ++ show b 
+validateReturn  (Just a) Nothing = err $ "Expected Return " ++ show a ++  "but got Nothing"
+validateReturn  (Just a) (Just b) = if a == b then return (Just a) else err $ "Expected Return " ++ show a ++  "but got " ++ show b
+validateReturn  Nothing Nothing = return Nothing
 
-tcBlock _ [ReturnS Nothing] _ = return Nothing
 
-tcBlock _ [ReturnS (Just e)] scope = do
+
+removeVoid :: Maybe JavaType -> Maybe JavaType
+removeVoid (Just Void) = Nothing
+removeVoid a = a
+
+
+tcBlock :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe JavaType -> Bool -> [Statement] -> Sc -> Free f (Maybe JavaType)
+tcBlock rt _ [] _ = validateReturn rt Nothing
+tcBlock rt _ [ReturnS Nothing] _ = validateReturn rt (Just Void)
+tcBlock rt _ [ReturnS (Just e)] scope = do
   actual <- tcExpr e scope
   case actual of
-    Void -> err "Can't return void"
-    _ -> return $ Just actual
+    Void -> err "Can't return void" -- (return void;)
+    _ -> validateReturn rt $ Just actual
+tcBlock _ _ ((ReturnS _):_) _ = err "Unreachable code after return statemnt"
+tcBlock rt l [BreakS] _ = if l then validateReturn rt Nothing else err "Break is not allowed outside of loop"
+tcBlock rt l [ContinueS] _ = if l then validateReturn rt Nothing else err "Continue is not allowed outside of loop"
+tcBlock _ _ (BreakS:_) _ = err "Unreachable code after break statemnt"
+tcBlock _ _ (ContinueS:_) _ = err "Unreachable code after continue statemnt"
 
-tcBlock _ ((ReturnS _):_) _ = err "Unreachable code after return statemnt"
-tcBlock l [BreakS] _ = if l then return Nothing else err "Break is not allowed outside of loop"
-tcBlock l [ContinueS] _ = if l then return Nothing else err "Continue is not allowed outside of loop"
-tcBlock _ (BreakS:_) _ = err "Unreachable code after break statemnt"
-tcBlock _ (ContinueS:_) _ = err "Unreachable code after continue statemnt"
-
-tcBlock l ((AssignmentS n e):rest) scope = do
+tcBlock rt l ((AssignmentS n e):rest) scope = do
   tcStatement (AssignmentS n e) scope
-  tcBlock l rest scope
+  tcBlock rt l rest scope
 
-tcBlock l ((IfS e t Nothing):rest) scope = do
+tcBlock rt l [IfS e t Nothing] scope = do -- when the retun type is not void, after an if statemnt there must be another return
   tcStatement (IfS e t Nothing) scope
   trueBranchScope <- new
   edge trueBranchScope P scope
-  trueBranchReturn <- tcBlock l t trueBranchScope
-  restReturn <- tcBlock l rest scope
-  if trueBranchReturn == restReturn then return trueBranchReturn else err "Return Type missmatch"
-
-tcBlock l ((IfS e t (Just f)):rest) scope = do
+  trueBranch <- tcBlock rt l t trueBranchScope
+  case rt of
+    Nothing -> validateReturn rt trueBranch
+    _ -> err $ "Missing return statemnt after if: " ++ show [IfS e t Nothing] -- when we return something in if but nothing in the rest of the body
+  
+-- Here, we can either return inside the if or return somewhere under it.
+tcBlock rt l [IfS e t (Just f)] scope = do
   tcStatement (IfS e t (Just f)) scope
   trueBranchScope <- new
   edge trueBranchScope P scope
-  trueBranchReturn <- tcBlock l t trueBranchScope
+  trueBranchReturn <- tcBlock rt l t trueBranchScope
   falseBranchScope <- new
   edge falseBranchScope P scope
-  falseBranchScope <- tcBlock l f falseBranchScope
-  restReturn <- tcBlock l rest scope
-  if trueBranchReturn /= falseBranchScope 
-    then err "The true and false branches return differnt types"
-    else if trueBranchReturn == restReturn 
-      then return trueBranchReturn 
-      else err "Return Type missmatch"
+  falseBranchReturn <- tcBlock rt l f falseBranchScope
+  validateReturn rt trueBranchReturn
+  validateReturn rt falseBranchReturn
 
-tcBlock l ((WhileS e loopBody):rest) scope = do
+
+tcBlock rt l ((IfS e t Nothing):rest) scope = do
+  tcStatement (IfS e t Nothing) scope
+  trueBranchScope <- new
+  edge trueBranchScope P scope
+  trueBranchReturn <- tcNestedBlock l t trueBranchScope
+  case trueBranchReturn of
+    (Just _) -> do
+      validateReturn rt trueBranchReturn
+      restReturn <- tcBlock rt l rest scope
+      validateReturn rt restReturn
+    Nothing -> do
+      restReturn <- tcBlock rt l rest scope
+      validateReturn rt restReturn
+
+
+tcBlock rt l ((IfS e t (Just f)):rest) scope = do
+  tcStatement (IfS e t (Just f)) scope
+  trueBranchScope <- new
+  edge trueBranchScope P scope
+  trueBranchReturn <- tcNestedBlock l t trueBranchScope
+  falseBranchScope <- new
+  edge falseBranchScope P scope
+  falseBranchReturn <- tcNestedBlock l f falseBranchScope
+  restReturn <- tcBlock rt l rest scope
+
+  case (trueBranchReturn, falseBranchReturn) of
+    (Just _ , Just _) -> err "Uncreachble code after if else statemnt"
+    (Just _, Nothing) -> do
+      validateReturn rt trueBranchReturn
+      validateReturn rt restReturn
+    (Nothing, Just _) -> do
+      validateReturn rt falseBranchReturn
+      validateReturn rt restReturn
+    _ -> validateReturn rt restReturn
+
+
+tcBlock rt _ [WhileS e loopBody] scope = do
   tcStatement (WhileS e loopBody) scope
   loopScope <- new
-  loopReturn <- tcBlock True loopBody loopScope
-  restReturn <- tcBlock l rest scope
-  if loopReturn == restReturn then return loopReturn else err "Return Type missmatch"
+  edge loopScope P scope
+  loopReturn <- trace ("tcNestedBlock while loop body with scope " ++ show loopScope) tcNestedBlock True loopBody loopScope
+  case rt of
+    Nothing -> validateReturn rt loopReturn
+    _ -> err "Missing return statemnt after while loop"
 
-tcBlock l ((VariableDeclarationS t s e):rest) scope = do
+tcBlock rt l ((WhileS e loopBody):rest) scope = do
+  tcStatement (WhileS e loopBody) scope
+  loopScope <- new
+  loopReturn <- tcNestedBlock True loopBody loopScope
+  case loopReturn of
+    (Just _) -> do
+      validateReturn rt loopReturn
+      restReturn <- tcBlock rt l rest scope
+      validateReturn rt restReturn
+    Nothing -> do
+      restReturn <- tcBlock rt l rest scope
+      validateReturn rt restReturn
+
+
+tcBlock rt l ((VariableDeclarationS t s e):rest) scope = do
   tcStatement (VariableDeclarationS t s e) scope
-  tcBlock l rest scope
+  tcBlock rt l rest scope
 
-tcBlock l ((ExpressionS e):rest) scope = do
+tcBlock rt l ((ExpressionS e):rest) scope = do
   tcStatement (ExpressionS e) scope
-  tcBlock l rest scope
+  tcBlock rt l rest scope
+
+
+
+tcNestedBlock :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Bool -> [Statement] -> Sc -> Free f (Maybe JavaType)
+tcNestedBlock _ [] _ = return Nothing
+tcNestedBlock _ [ReturnS Nothing] _ = return $ Just Void
+tcNestedBlock _ [ReturnS (Just e)] scope = do
+  actual <- tcExpr e scope
+  case actual of
+    Void -> err "Can't return void" 
+    _ -> return $ Just actual
+
+tcNestedBlock _ ((ReturnS _):_) _ = err "Unreachable code after return statemnt" -- it's hard to detect unreachble code from outside nested blocks
+tcNestedBlock l [BreakS] _ = if l then return Nothing else err "Break is not allowed outside of loop"
+tcNestedBlock l [ContinueS] _ = if l then return Nothing else err "Continue is not allowed outside of loop"
+tcNestedBlock _ (BreakS:_) _ = err "Unreachable code after break statemnt"
+tcNestedBlock _ (ContinueS:_) _ = err "Unreachable code after continue statemnt"
+
+tcNestedBlock l ((AssignmentS n e):rest) scope = do
+  tcStatement (AssignmentS n e) scope
+  tcNestedBlock l rest scope
+
+tcNestedBlock l [IfS e t Nothing] scope = do
+  tcStatement (IfS e t Nothing) scope
+  trueBranchScope <- new
+  edge trueBranchScope P scope
+  tcNestedBlock l t trueBranchScope
+
+  
+tcNestedBlock l [IfS e t (Just f)] scope = do
+  tcStatement (IfS e t (Just f)) scope
+  trueBranchScope <- new
+  edge trueBranchScope P scope
+  trueBranchReturn <- tcNestedBlock l t trueBranchScope
+  falseBranchScope <- new
+  edge falseBranchScope P scope
+  falseBranchReturn <- tcNestedBlock l f falseBranchScope
+  validateSameReturn trueBranchReturn falseBranchReturn
+
+
+tcNestedBlock l ((IfS e t Nothing):rest) scope = do
+  tcStatement (IfS e t Nothing) scope
+  trueBranchScope <- new
+  edge trueBranchScope P scope
+  trueBranchReturn <- tcNestedBlock l t trueBranchScope
+  case trueBranchReturn of
+    (Just _) -> do
+      restReturn <- tcNestedBlock l rest scope
+      validateSameReturn trueBranchReturn restReturn
+    Nothing -> do
+      tcNestedBlock l rest scope
+
+
+
+tcNestedBlock l ((IfS e t (Just f)):rest) scope = do
+  tcStatement (IfS e t (Just f)) scope
+  trueBranchScope <- new
+  edge trueBranchScope P scope
+  trueBranchReturn <- tcNestedBlock l t trueBranchScope
+  falseBranchScope <- new
+  edge falseBranchScope P scope
+  falseBranchReturn <- tcNestedBlock l f falseBranchScope
+  restReturn <- tcNestedBlock l rest scope
+
+  case (trueBranchReturn, falseBranchReturn) of
+    (Just _ , Just _) -> err "Uncreachble code after if else statemnt"
+    (Just _, Nothing) -> do
+      validateSameReturn trueBranchReturn restReturn
+    (Nothing, Just _) -> do
+      validateSameReturn falseBranchReturn restReturn
+    _ -> return restReturn
+
+
+tcNestedBlock _ [WhileS e loopBody] scope = do
+  tcStatement (WhileS e loopBody) scope
+  loopScope <- new
+  tcNestedBlock True loopBody loopScope
+
+tcNestedBlock l ((WhileS e loopBody):rest) scope = do
+  tcStatement (WhileS e loopBody) scope
+  loopScope <- new
+  loopReturn <- tcNestedBlock True loopBody loopScope
+  case loopReturn of
+    (Just _) -> do
+      restReturn <- tcNestedBlock l rest scope
+      validateSameReturn loopReturn restReturn
+    Nothing -> do
+      tcNestedBlock l rest scope 
+
+
+tcNestedBlock l ((VariableDeclarationS t s e):rest) scope = do
+  tcStatement (VariableDeclarationS t s e) scope
+  tcNestedBlock l rest scope
+
+tcNestedBlock l ((ExpressionS e):rest) scope = do
+  tcStatement (ExpressionS e) scope
+  tcNestedBlock l rest scope
+
+
+validateSameReturn :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe JavaType -> Maybe JavaType -> Free f (Maybe JavaType)
+validateSameReturn Nothing Nothing = return Nothing
+validateSameReturn (Just Void) (Just Void) = return (Just Void)
+validateSameReturn (Just Void) Nothing = return (Just Void)
+validateSameReturn Nothing (Just Void) = return (Just Void)
+validateSameReturn a b = if a == b then return a else err $ "If statment return missmatch if returns " ++ show a ++ " else returns " ++ show b
+
 
 
 tcLiteral :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Literal -> Free f JavaType
