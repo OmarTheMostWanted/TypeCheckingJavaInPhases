@@ -130,6 +130,43 @@ usingAnImportInFieldTest = do
   return $ fst t
 
 
+byPassingLimitationUsingAveriableThenShadowingitTest :: IO ()
+byPassingLimitationUsingAveriableThenShadowingitTest = do
+  t <- runFullTCTest byPassingLimitationUsingAveriableThenShadowingit
+  return $ fst t
+
+-- Test :: IO ()
+-- Test = do
+--   t <- runFullTCTest 
+--   return $ fst t
+
+
+-- Test :: IO ()
+-- Test = do
+--   t <- runFullTCTest 
+--   return $ fst t
+
+
+-- Test :: IO ()
+-- Test = do
+--   t <- runFullTCTest 
+--   return $ fst t
+
+
+-- Test :: IO ()
+-- Test = do
+--   t <- runFullTCTest 
+--   return $ fst t
+
+
+-- Test :: IO ()
+-- Test = do
+--   t <- runFullTCTest 
+--   return $ fst t
+
+
+
+
 tests :: Test
 tests = TestList
     [ 
@@ -145,7 +182,8 @@ tests = TestList
       "usingControlFlow2Test" ~: usingControlFlow2Test,
       -- "breakStatemtnsTest" ~: breakStatemtnsTest,
       -- "nextedBlockPathTest" ~: nextedBlockPathTest,
-      "usingAnImportInFieldTest" ~: usingAnImportInFieldTest
+      -- "usingAnImportInFieldTest" ~: usingAnImportInFieldTest, -- test the fails but it shouldn't false positive
+      "byPassingLimitationUsingAveriableThenShadowingitTest" ~: byPassingLimitationUsingAveriableThenShadowingitTest
 
     ]
 

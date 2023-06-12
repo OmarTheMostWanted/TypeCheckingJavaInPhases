@@ -1,7 +1,5 @@
 module Syntax where
 
-import ATerms.ATerm
-import qualified ATerms.Parser as P
 
 
 -- Data type for Java types

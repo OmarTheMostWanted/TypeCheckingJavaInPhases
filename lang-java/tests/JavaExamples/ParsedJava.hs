@@ -725,3 +725,84 @@ usingAnImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModul
             [ ImportDeclaration "ModuleB" "ClassB" ]
             (ClassDeclaration "ClassA" [FieldDeclaration (ObjectType "ClassB") "x" Nothing] False (Just DefaultConstructor))
 
+
+{-
+
+package ModuleA;
+
+public class ClassA {
+    public int x;
+
+    public void method(){
+        this.helper(x);
+        int x = 69;
+        helper(x);
+    }
+
+
+    public void helper(int x){
+
+    }
+
+}
+
+
+-}
+
+
+
+monotonicityFalsePositivite :: [JavaModule]
+monotonicityFalsePositivite = [JavaModule "ModuleA" [classACompilationUnit]]
+  where
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassA"
+          [ FieldDeclaration IntType "x" Nothing
+          , MethodDeclaration
+              Nothing
+              "method"
+              []
+              [ ExpressionS $ MethodInvocationE ThisE "helper" [VariableIdE "x"] -- here we query x from method scope
+              , VariableDeclarationS IntType "x" (Just (LiteralE (IntLiteral 69))) -- which results with an error here, phasing don't work here, because values of x should be this.x, but if the declration was choosen done in an earilier phase it will showdow this.x
+              , ExpressionS $ MethodCallE "helper" [VariableIdE "x"] -- this is possible to fix but it will make the code imparative and defeat the purpus of scope graphs
+              ]
+          , MethodDeclaration
+              Nothing
+              "helper"
+              [Parameter IntType "x"]
+              []
+          ]
+          False
+          (Just DefaultConstructor)
+        )
+
+byPassingLimitationUsingAveriableThenShadowingit :: [JavaModule]
+byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classACompilationUnit]]
+  where
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassA"
+          [ FieldDeclaration IntType "x" Nothing
+          , MethodDeclaration
+              Nothing
+              "method"
+              []
+              [ ExpressionS $ MethodInvocationE ThisE "helper" [FieldAccessE ThisE $ "x"] -- by always using this, then the method scope will not be queried for x
+              , VariableDeclarationS IntType "x" (Just (LiteralE (IntLiteral 69))) -- this way then x is declared here it will not cause issues, and it will allow for phasing if needed
+              , ExpressionS $ MethodCallE "helper" [VariableIdE "x"]
+              ]
+          , MethodDeclaration
+              Nothing
+              "helper"
+              [Parameter IntType "x"]
+              []
+          ]
+          False
+          (Just DefaultConstructor)
+        )

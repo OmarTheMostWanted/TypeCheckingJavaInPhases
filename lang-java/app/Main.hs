@@ -344,6 +344,7 @@ usingControlFlow = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 
 {-
+
 package ModuleB;
 
 public class ClassB {
@@ -553,45 +554,85 @@ usingAnImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModul
 
 {-
 
-
-package ModuleB;
-
-public class ClassA {
-
-}
-
-
 package ModuleA;
 
-import ModuleB.ClassA;
-
 public class ClassA {
-    public ClassA x;
-}
+    public int x;
 
+    public void method(){
+        this.helper(x);
+        int x = 69;
+        helper(x);
+    }
+
+
+    public void helper(int x){
+
+    }
+
+}
 
 
 -}
 
--- Haskell code:
-usingAShadowedImportInField :: [JavaModule]
-usingAShadowedImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
-  where
-    classBCompilationUnit :: CompilationUnit
-    classBCompilationUnit =
-      CompilationUnit
-        []
-        (ClassDeclaration "ClassA" [] False (Just DefaultConstructor))
 
+
+monotonicityFalsePositivite :: [JavaModule]
+monotonicityFalsePositivite = [JavaModule "ModuleA" [classACompilationUnit]]
+  where
     classACompilationUnit :: CompilationUnit
     classACompilationUnit =
-        CompilationUnit
-            [ ImportDeclaration "ModuleB" "ClassA" ]
-            (ClassDeclaration "ClassA" [FieldDeclaration (ObjectType "ClassA") "x" Nothing] False (Just DefaultConstructor))
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassA"
+          [ FieldDeclaration IntType "x" Nothing
+          , MethodDeclaration
+              Nothing
+              "method"
+              []
+              [ ExpressionS $ MethodInvocationE ThisE "helper" [VariableIdE "x"] -- here we query x from method scope
+              , VariableDeclarationS IntType "x" (Just (LiteralE (IntLiteral 69))) -- which results with an error here, phasing don't work here, because values of x should be this.x, but if the declration was choosen done in an earilier phase it will showdow this.x
+              , ExpressionS $ MethodCallE "helper" [VariableIdE "x"] -- this is possible to fix but it will make the code imparative and defeat the purpus of scope graphs
+              ]
+          , MethodDeclaration
+              Nothing
+              "helper"
+              [Parameter IntType "x"]
+              []
+          ]
+          False
+          (Just DefaultConstructor)
+        )
 
-
-
+byPassingLimitationUsingAveriableThenShadowingit :: [JavaModule]
+byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classACompilationUnit]]
+  where
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassA"
+          [ FieldDeclaration IntType "x" Nothing
+          , MethodDeclaration
+              Nothing
+              "method"
+              []
+              [ ExpressionS $ MethodInvocationE ThisE "helper" [FieldAccessE ThisE $ "x"] -- by always using this, then the method scope will not be queried for x
+              , VariableDeclarationS IntType "x" (Just (LiteralE (IntLiteral 69))) -- this way then x is declared here it will not cause issues, and it will allow for phasing if needed
+            --   , ExpressionS $ MethodCallE "helper" [VariableIdE "x"]
+              ]
+          , MethodDeclaration
+              Nothing
+              "helper"
+              [Parameter IntType "x"]
+              []
+          ]
+          False
+          (Just DefaultConstructor)
+        )
 
 main :: IO ()
 main = do
-    print $ runTC usingAnImportInField
+    print $ runTC byPassingLimitationUsingAveriableThenShadowingit
