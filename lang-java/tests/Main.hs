@@ -180,9 +180,9 @@ tests = TestList
       "usingConditionalNoElseTest" ~: usingConditionalNoElseTest,
       "usingControlFlowTest" ~: usingControlFlowTest,
       "usingControlFlow2Test" ~: usingControlFlow2Test,
-      -- "breakStatemtnsTest" ~: breakStatemtnsTest,
-      -- "nextedBlockPathTest" ~: nextedBlockPathTest,
-      -- "usingAnImportInFieldTest" ~: usingAnImportInFieldTest, -- test the fails but it shouldn't false positive
+      "breakStatemtnsTest" ~: breakStatemtnsTest,
+      -- "nextedBlockPathTest" ~: nextedBlockPathTest, --false positive
+      "usingAnImportInFieldTest" ~: usingAnImportInFieldTest,
       "byPassingLimitationUsingAveriableThenShadowingitTest" ~: byPassingLimitationUsingAveriableThenShadowingitTest
 
     ]

@@ -32,7 +32,7 @@ data Decl
   | ClassDecl String Sc
   | ModuleDecl String Sc
   | ConstructorDecl String [MethodParameter]
-  | ScopeType String Sc -- To help I dentifie which type's scope this is declared in, helps later for multiple classes in one file and nested class's, as all classDecls can be in the same parent scope and can still be found from their own scope
+  | ScopeType String -- To help I dentifie which type's scope this is declared in, helps later for multiple classes in one file and nested class's, as all classDecls can be in the same parent scope and can still be found from their own scope
   deriving (Show, Eq)
 
 -- projTy :: Decl -> JavaType
@@ -75,7 +75,7 @@ matchDecl x (MethodDecl x' _ _) = x == x'
 matchDecl x (ClassDecl x' _) = x == x'
 matchDecl x (ConstructorDecl t _) = x == t
 matchDecl x (ModuleDecl x' _) = x == x'
-matchDecl x (ScopeType x' _) = x == x'
+matchDecl x (ScopeType x') = x == x'
 
 
 matchConstructor :: Decl -> Bool
@@ -83,7 +83,7 @@ matchConstructor (ConstructorDecl _ _)  = True
 matchConstructor _ = False
 
 matchScopeType :: String -> Decl -> Bool
-matchScopeType x (ScopeType x' _ ) = x == x'
+matchScopeType x (ScopeType x') = x == x'
 matchScopeType _ _ = False
 
 
@@ -147,7 +147,7 @@ discoverModuleClasses (CompilationUnit _ (ClassDeclaration className _ isStatic 
     sink moduleScope Cl $ ClassDecl className classScope
 
   trace ("Giving scope " ++ show classScope ++ " type " ++ className)
-    sink classScope T $ ScopeType className classScope
+    sink classScope T $ ScopeType className
 
   when isStatic $ case constructor of
     (Just _) -> err $ "Static class " ++ className ++ " is static but has a constructor"
@@ -239,7 +239,7 @@ checkIfTypeIsVisibleInScope (ObjectType typeName) classScope = do
   match <- query classScope (Pipe (Dot (Star $ Atom P)  $ Atom T) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom T))) pShortest $ matchScopeType typeName -- the re here: Either we are looking for a type in the class scope or for an imported type
   case match of
     [] -> err $ "Type " ++ typeName ++ " doesn't exist in scope"
-    [ScopeType _ _] -> return ()
+    [ScopeType _ ] -> return ()
     _ -> err $ "Ambiguity in type " ++ typeName ++ " found multiple matchs " ++ show match
 checkIfTypeIsVisibleInScope _ _ = return ()
 
@@ -518,11 +518,11 @@ tcNestedBlock l ((ExpressionS e):rest) scope = do
 
 tcExpr :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Expression -> Sc -> Free f JavaType
 tcExpr ThisE scope = do
-  scopeType <- trace ("Querying for class type in scope " ++ show scope ) 
+  scopeType <- trace ("Querying for the nearest scope type in scope " ++ show scope ) 
     query scope (Dot (Star $ Atom P)  $ Atom T) pShortest (const True) -- we want the nearst scope type for the keyword this
   case scopeType of
     [] -> err $ "No class was found while resolving this from scope " ++ show scope
-    [ScopeType name _] -> return $ ObjectType name
+    [ScopeType name ] -> return $ ObjectType name
     _ -> err $ "Ambiguity in this keyword, found multiple types for scope " ++ show scopeType
 
 tcExpr (LiteralE l) _ = tcLiteral l
@@ -572,9 +572,9 @@ tcExpr (FieldAccessE expr fieldName) scope = do
         query scope (Dot (Star $ Atom P)  $ Atom T) pShortest (matchScopeType objectName)
       case scopeType of
         [] -> err $ "Class " ++ objectName ++ " not found"
-        [ScopeType name classScope ] -> do
-          fieldDecl <- trace ("Querying scope " ++ show classScope ++ " for varaible " ++ fieldName) 
-            query classScope (Dot (Star $ Atom P)  $ Atom F)  pShortest (matchDecl fieldName)
+        [ScopeType name ] -> do
+          fieldDecl <- trace ("Querying scope " ++ show scope ++ " for varaible " ++ fieldName) 
+            query scope (Dot (Star $ Atom P)  $ Atom F)  pShortest (matchDecl fieldName)
           case fieldDecl of
             [] -> err $ "Field " ++ fieldName ++ " not found in class " ++ name
             [VarDecl _ t] -> return t

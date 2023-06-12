@@ -465,7 +465,7 @@ public class ClassB {
 
     public ClassB(){
         while (x){
-            boolean y = x;
+            boolean y; // if I use x in the loop scope, I won't be able to declare y, but if I declare y first, this will allow variables above where y actually was declated to be able to use y
         }
     }
 
@@ -486,7 +486,7 @@ nextedBlockPath = [JavaModule "ModuleB" [CompilationUnit [] classB]]
                 , isStatic = False
                 , constructor = Just (Constructor [] [ WhileS (VariableIdE "x")
                                 [ 
-                                    VariableDeclarationS BooleanType "y" (Just (VariableIdE "x"))
+                                    VariableDeclarationS BooleanType "y" Nothing
                                 ]
                             ]  ) 
                 }
@@ -635,4 +635,4 @@ byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classA
 
 main :: IO ()
 main = do
-    print $ runTC byPassingLimitationUsingAveriableThenShadowingit
+    print $ runTC nextedBlockPath
