@@ -1,91 +1,34 @@
-module Main where
-import TypeCheck (runTC)
+module ParsedJava where
 
 import Syntax
+import TypeCheck (tcClassConstructor)
 
 
 {-
+package ModuleA;
 
-/MyModule/MyClass.java
-import MyModule2.MyClass2;
-class MyClass {
-  int myField;
-  void myMethod(){
+public class MyClass {
 
-  }
+    public int myMethod(){
+        ClassA a = new ClassA(9);
+        int res = a.x;
+        return res;
+    }
+
 }
 
 
-/MyModule2/MyClass2.java
+package ModuleA;
 
-class MyClass2 {
-  int myField2;
-  void myMethod2(){
+public class ClassA {
+    int x;
 
-  }
+    public  ClassA(int x){
+        this.x = x;
+    }
 }
-
 
 -}
-
-javaModule :: JavaModule
-javaModule = JavaModule "MyModule" 
-  [CompilationUnit 
-    [ImportDeclaration "MyModule2" "MyClass2"] 
-    $ ClassDeclaration "MyClass" 
-      [FieldDeclaration IntType "myField" Nothing, MethodDeclaration Nothing "myMethod" [] []] 
-      False Nothing]
-
--- Create a module
-javaModule2 :: JavaModule
-javaModule2 = JavaModule "MyModule2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
-
-classACompilationUnit :: CompilationUnit
-classACompilationUnit =
-  CompilationUnit
-    [ ImportDeclaration "ModuleB" "ClassB" ]
-    (ClassDeclaration
-      "ClassA"
-      [ FieldDeclaration IntType "x" Nothing
-      , MethodDeclaration
-          (Just IntType)
-          "ClassA"
-          []
-          [ AssignmentS (VariableIdE "x") (LiteralE (IntLiteral 10))
-          ]
-      , MethodDeclaration
-          (Just IntType)
-          "methodA"
-          []
-          [ VariableDeclarationS (ObjectType "ClassB") "o" (Just (NewE "ClassB" []))
-          , VariableDeclarationS StringType "deez" (Just (MethodInvocationE (VariableIdE "o") "sayHello" [LiteralE (StringLiteral "nutz")]))
-          , ReturnS (Just (VariableIdE "x"))
-          ]
-      ]
-      False
-      (Just (Constructor [] [AssignmentS (FieldAccessE ThisE "x") (LiteralE (IntLiteral 10))]))
-    )
-
-classBCompilationUnit :: CompilationUnit
-classBCompilationUnit =
-  CompilationUnit
-    []
-    (ClassDeclaration
-      "ClassB"
-      [ MethodDeclaration
-          (Just StringType)
-          "ClassB"
-          []
-          []
-      , MethodDeclaration
-          (Just StringType)
-          "sayHello"
-          [ Parameter StringType "name" ]
-          [ ReturnS (Just (BinaryOpE (LiteralE (StringLiteral "hello ")) StringConcatOp (VariableIdE "name"))) ]
-      ]
-      False
-      (Just (Constructor [] []))
-    )
 
 testingThisNameShodowing :: [JavaModule]
 testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = [compilationUnit, myClassCompilationUnit] }]
@@ -146,6 +89,256 @@ testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = 
             moduleName = "ModuleA",
             moduleMembers = [compilationUnit, myClassCompilationUnit]
             }
+
+
+
+
+
+
+
+{-
+
+
+package ModuleB;
+
+public class ClassB {
+
+    public char b = 'a';
+
+    public ClassB() {
+    }
+
+    public String sayHello(String name) {
+        return "hello " + name;
+    }
+}
+
+
+-}
+
+simplyClass :: [JavaModule]
+simplyClass = [JavaModule "ModuleB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ FieldDeclaration CharType "b" (Just (LiteralE (CharLiteral 'a')))
+          , MethodDeclaration
+              (Just StringType)
+              "sayHello"
+              [ Parameter StringType "name" ]
+              [ ReturnS (Just (BinaryOpE (LiteralE (StringLiteral "hello ")) StringConcatOp (VariableIdE "name"))) ]
+          ]
+          False
+          (Just (Constructor [] []))
+        )
+
+{-
+
+package ModuleB;
+
+public class ClassB {
+
+    public char b = 'a';
+
+    public char sayHello(String name) {
+        return b;
+    }
+}
+
+-}
+
+usingField :: [JavaModule]
+usingField = [JavaModule "ModuleB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ FieldDeclaration CharType "b" (Just (LiteralE (CharLiteral 'a')))
+          , MethodDeclaration
+              (Just CharType)
+              "sayHello"
+              [ Parameter StringType "name" ]
+              [ ReturnS (Just (VariableIdE "b")) ]
+          ]
+          False
+          $ Just DefaultConstructor
+        )
+
+
+{-
+
+package ModuleB;
+
+public class ClassB {
+
+    public char b = 'a';
+
+    public char sayHello(String name) {
+        return b;
+    }
+
+    public void calSayHello(String name) {
+        sayHello(name);
+    }
+}
+
+-}
+
+usingMethods :: [JavaModule]
+usingMethods = [JavaModule "ModuleB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ FieldDeclaration CharType "b" (Just (LiteralE (CharLiteral 'a')))
+          , MethodDeclaration
+              (Just CharType)
+              "sayHello"
+              [ Parameter StringType "name" ]
+              [ ReturnS (Just (VariableIdE "b")) ]
+          , MethodDeclaration
+              Nothing
+              "calSayHello"
+              [ Parameter StringType "name" ]
+              [ ExpressionS (MethodCallE "sayHello" [VariableIdE "name"]) ]
+          ]
+          False
+          (Just DefaultConstructor)
+        )
+
+
+{-
+
+package ModuleB;
+
+public class ClassB {
+    public int x = 60;
+
+    public int whatIsMyFavNumber() {
+        return x + 9;
+    }
+}
+
+
+-}
+
+usingFieldAndMethod :: [JavaModule]
+usingFieldAndMethod = [JavaModule "ModuleB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ FieldDeclaration IntType "x" (Just (LiteralE (IntLiteral 60)))
+          , MethodDeclaration
+              (Just IntType)
+              "whatIsMyFavNumber"
+              []
+              [ ReturnS (Just (BinaryOpE (VariableIdE "x") ArithmaticOp (LiteralE (IntLiteral 9)))) ]
+          ]
+          False
+          (Just DefaultConstructor)
+        )
+
+{-
+
+package ModuleB;
+
+public class ClassB {
+    public int whatIsMyFavNumber() {
+        boolean cond = 420 == 69;
+        
+        if (cond) {
+            return 0;
+        } else {
+            int name = 2;
+            return name;
+        }
+    }
+}
+
+-}
+
+usingConditional :: [JavaModule]
+usingConditional = [JavaModule "ModuleB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ MethodDeclaration
+              (Just IntType)
+              "whatIsMyFavNumber"
+              []
+              [ VariableDeclarationS BooleanType "cond" (Just (BinaryOpE (LiteralE (IntLiteral 420)) EqualityOp (LiteralE (IntLiteral 69))))
+              , IfS (VariableIdE "cond") 
+                  [ ReturnS (Just (LiteralE (IntLiteral 0))) ]
+                  $ Just [ VariableDeclarationS IntType "name" (Just (LiteralE (IntLiteral 2)))
+                  , ReturnS (Just (VariableIdE "name"))
+                  ]
+              ]
+          ]
+          False
+          (Just DefaultConstructor)
+        )
+
+
+{-
+
+package ModuleB;
+
+public class ClassB {
+    public int whatIsMyFavNumber() {
+        boolean cond = 420 == 69;
+
+        if (cond) {
+            return 0;
+        }
+
+        return 0;
+    }
+}
+
+-}
+
+usingConditionalNoElse :: [JavaModule]
+usingConditionalNoElse = [JavaModule "ModuleB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ MethodDeclaration
+              (Just IntType)
+              "whatIsMyFavNumber"
+              []
+              [ VariableDeclarationS BooleanType "cond" (Just (BinaryOpE (LiteralE (IntLiteral 420)) EqualityOp (LiteralE (IntLiteral 69))))
+              , IfS
+                  (VariableIdE "cond")
+                  [ ReturnS (Just (LiteralE (IntLiteral 0))) ]
+                  Nothing
+              , ReturnS (Just (LiteralE (IntLiteral 0)))
+              ]
+          ]
+          False
+          (Just DefaultConstructor)
+        )
 
 
 {-
@@ -343,8 +536,8 @@ usingControlFlow = [JavaModule "ModuleB" [classBCompilationUnit]]
         )
 
 
-{-
 
+{-
 package ModuleB;
 
 public class ClassB {
@@ -445,15 +638,16 @@ breakStatemtns = [JavaModule "ModuleB" [CompilationUnit [] classB]]
                 , members =
                     [ FieldDeclaration BooleanType "x" Nothing ]
                 , isStatic = False
-                , constructor = Just (Constructor [] [ 
-                  WhileS (VariableIdE "x")
+                , constructor = Just (Constructor [] [ WhileS (VariableIdE "x")
                                 [ 
-                                  -- IfS (VariableIdE "x")
-                                  --   [ BreakS ]
-                                  --   (Just [ ContinueS ])
+                                    IfS (VariableIdE "x")
+                                    [ BreakS ]
+                                    (Just [ ContinueS ])
                                 ]
                             ]  ) 
                 }
+    
+
 
 {-
 
@@ -489,25 +683,6 @@ nextedBlockPath = [JavaModule "ModuleB" [CompilationUnit [] classB]]
                                     VariableDeclarationS BooleanType "y" (Just (VariableIdE "x"))
                                 ]
                             ]  ) 
-                }
-
-
-assignment :: [JavaModule]
-assignment = [JavaModule "ModuleB" [CompilationUnit [] classB]]
-    where
-        classB :: ClassDeclaration
-        classB =
-            ClassDeclaration
-                { className = "ClassB"
-                , members =
-                    [ FieldDeclaration BooleanType "x" Nothing ]
-                , isStatic = False
-                , constructor = Just (Constructor [] [
-                  -- AssignmentS  (VariableIdE "X") (LiteralE $ BooleanLiteral False)
-                --   ExpressionS $ VariableIdE "x",
-                  VariableDeclarationS BooleanType "x" Nothing
-                  -- ExpressionS $ VariableIdE "x"
-                ]  ) 
                 }
 
 
@@ -549,7 +724,6 @@ usingAnImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModul
         CompilationUnit
             [ ImportDeclaration "ModuleB" "ClassB" ]
             (ClassDeclaration "ClassA" [FieldDeclaration (ObjectType "ClassB") "x" Nothing] False (Just DefaultConstructor))
-
 
 
 {-
@@ -621,7 +795,7 @@ byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classA
               []
               [ ExpressionS $ MethodInvocationE ThisE "helper" [FieldAccessE ThisE $ "x"] -- by always using this, then the method scope will not be queried for x
               , VariableDeclarationS IntType "x" (Just (LiteralE (IntLiteral 69))) -- this way then x is declared here it will not cause issues, and it will allow for phasing if needed
-            --   , ExpressionS $ MethodCallE "helper" [VariableIdE "x"]
+              , ExpressionS $ MethodCallE "helper" [VariableIdE "x"]
               ]
           , MethodDeclaration
               Nothing
@@ -632,7 +806,3 @@ byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classA
           False
           (Just DefaultConstructor)
         )
-
-main :: IO ()
-main = do
-    print $ runTC byPassingLimitationUsingAveriableThenShadowingit
