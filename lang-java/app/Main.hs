@@ -620,13 +620,13 @@ byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classA
               "method"
               []
               [ ExpressionS $ MethodInvocationE ThisE "helper" [FieldAccessE ThisE $ "x"] -- by always using this, then the method scope will not be queried for x
-              , VariableDeclarationS IntType "x" (Just (LiteralE (IntLiteral 69))) -- this way then x is declared here it will not cause issues, and it will allow for phasing if needed
-            --   , ExpressionS $ MethodCallE "helper" [VariableIdE "x"]
+              , VariableDeclarationS IntType "xo" (Just (LiteralE (IntLiteral 69))) -- this way then x is declared here it will not cause issues, and it will allow for phasing if needed
+              , ExpressionS $ MethodCallE "helper" [VariableIdE "x"]
               ]
           , MethodDeclaration
               Nothing
               "helper"
-              [Parameter IntType "x"]
+              [Parameter IntType "u"]
               []
           ]
           False

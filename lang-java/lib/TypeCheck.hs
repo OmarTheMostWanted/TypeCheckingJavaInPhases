@@ -20,6 +20,7 @@ data Label
   | M -- Module Declaration
   | Cl -- Class Declaration to resolve this keyword
   | T -- Scope Type Declaration 
+  | F
   deriving (Show, Eq)
 
 
@@ -31,7 +32,7 @@ data Decl
   | ClassDecl String Sc
   | ModuleDecl String Sc
   | ConstructorDecl String [MethodParameter]
-  | ScopeType String -- To help I dentifie which type's scope this is declared in, helps later for multiple classes in one file and nested class's, as all classDecls can be in the same parent scope and can still be found from their own scope
+  | ScopeType String Sc -- To help I dentifie which type's scope this is declared in, helps later for multiple classes in one file and nested class's, as all classDecls can be in the same parent scope and can still be found from their own scope
   deriving (Show, Eq)
 
 -- projTy :: Decl -> JavaType
@@ -43,7 +44,7 @@ data Decl
 
 -- Regular expression P*D must be chanced to allow for a single import edge I 
 re :: RE Label
-re = Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))
+re = Pipe (Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))) (Dot (Star $ Atom P)  $ Atom F)
 
 -- Regular expression P*M
 moduleRe :: RE Label
@@ -74,7 +75,7 @@ matchDecl x (MethodDecl x' _ _) = x == x'
 matchDecl x (ClassDecl x' _) = x == x'
 matchDecl x (ConstructorDecl t _) = x == t
 matchDecl x (ModuleDecl x' _) = x == x'
-matchDecl x (ScopeType x') = x == x'
+matchDecl x (ScopeType x' _) = x == x'
 
 
 matchConstructor :: Decl -> Bool
@@ -82,7 +83,7 @@ matchConstructor (ConstructorDecl _ _)  = True
 matchConstructor _ = False
 
 matchScopeType :: String -> Decl -> Bool
-matchScopeType x (ScopeType x') = x == x'
+matchScopeType x (ScopeType x' _ ) = x == x'
 matchScopeType _ _ = False
 
 
@@ -102,6 +103,20 @@ causeMonotonicity = do
   programScope <- new
   query programScope re pShortest (matchDecl "y")
   sink programScope D $ VarDecl "y" IntType
+
+-- an example to cause the infomous simcity error
+causeMonotonicity2 :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Free f ()
+causeMonotonicity2 = do
+  programScope <- new
+  sink programScope F $ VarDecl "y" IntType
+  
+  scope <- new
+  edge scope P programScope
+
+  query programScope (Dot (Star $ Atom P)  $ Atom F)  pShortest (matchDecl "x")
+
+  -- query scope re pShortest (matchDecl "z")
+  sink scope D $ VarDecl "o" IntType
 
 
 -- Phase 1: Step 0: start point for the type checker
@@ -132,7 +147,7 @@ discoverModuleClasses (CompilationUnit _ (ClassDeclaration className _ isStatic 
     sink moduleScope Cl $ ClassDecl className classScope
 
   trace ("Giving scope " ++ show classScope ++ " type " ++ className)
-    sink classScope T $ ScopeType className
+    sink classScope T $ ScopeType className classScope
 
   when isStatic $ case constructor of
     (Just _) -> err $ "Static class " ++ className ++ " is static but has a constructor"
@@ -203,7 +218,7 @@ addDeclsForClassMemebers m classScope =
       trace ("Validating Field type " ++ show ft ++ " in scope " ++ show classScope)
         checkIfTypeIsVisibleInScope ft classScope
       trace ("Added Field " ++ show (VarDecl name ft) ++ " to scope " ++ show classScope)
-        sink classScope D $ VarDecl name ft
+        sink classScope F $ VarDecl name ft
 
     (MethodDeclaration Nothing name params _) -> do
       trace ("Validating Method parameter types " ++ show [ t | Parameter t _ <-  params] ++ " in scope " ++ show classScope)
@@ -224,7 +239,7 @@ checkIfTypeIsVisibleInScope (ObjectType typeName) classScope = do
   match <- query classScope (Pipe (Dot (Star $ Atom P)  $ Atom T) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom T))) pShortest $ matchScopeType typeName -- the re here: Either we are looking for a type in the class scope or for an imported type
   case match of
     [] -> err $ "Type " ++ typeName ++ " doesn't exist in scope"
-    [ScopeType _] -> return ()
+    [ScopeType _ _] -> return ()
     _ -> err $ "Ambiguity in type " ++ typeName ++ " found multiple matchs " ++ show match
 checkIfTypeIsVisibleInScope _ _ = return ()
 
@@ -503,11 +518,12 @@ tcNestedBlock l ((ExpressionS e):rest) scope = do
 
 tcExpr :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Expression -> Sc -> Free f JavaType
 tcExpr ThisE scope = do
-  constructorDecl <- query scope re pShortest matchConstructor
-  case constructorDecl of
-    [] -> err $ "Using {this} in a static class" ++ show scope
-    [ConstructorDecl name _] -> return $ ObjectType name
-    _ -> err $ "more than one constructor found when only one is allowed" ++ show constructorDecl
+  scopeType <- trace ("Querying for class type in scope " ++ show scope ) 
+    query scope (Dot (Star $ Atom P)  $ Atom T) pShortest (const True) -- we want the nearst scope type for the keyword this
+  case scopeType of
+    [] -> err $ "No class was found while resolving this from scope " ++ show scope
+    [ScopeType name _] -> return $ ObjectType name
+    _ -> err $ "Ambiguity in this keyword, found multiple types for scope " ++ show scopeType
 
 tcExpr (LiteralE l) _ = tcLiteral l
 tcExpr (VariableIdE varName) scope = do
@@ -552,17 +568,18 @@ tcExpr (FieldAccessE expr fieldName) scope = do
   object <- tcExpr expr scope
   case object of
     (ObjectType objectName) -> do
-      classDecl <- query scope classRe pShortest (matchDecl objectName)
-      case classDecl of
+      scopeType <- trace ("Querying scope " ++ show scope ++ " for scope type " ++ objectName)
+        query scope (Dot (Star $ Atom P)  $ Atom T) pShortest (matchScopeType objectName)
+      case scopeType of
         [] -> err $ "Class " ++ objectName ++ " not found"
-        [ClassDecl name classScope] -> do
+        [ScopeType name classScope ] -> do
           fieldDecl <- trace ("Querying scope " ++ show classScope ++ " for varaible " ++ fieldName) 
-            query classScope re pShortest (matchDecl fieldName)
+            query classScope (Dot (Star $ Atom P)  $ Atom F)  pShortest (matchDecl fieldName)
           case fieldDecl of
             [] -> err $ "Field " ++ fieldName ++ " not found in class " ++ name
             [VarDecl _ t] -> return t
             _ -> err "More than on deffiniton found"
-        _ -> err $ "More than one class found with name " ++ objectName ++ " while resolving " ++ show (FieldAccessE expr fieldName) ++ show classDecl
+        _ -> err $ "More than one class found with name " ++ objectName ++ " while resolving " ++ show (FieldAccessE expr fieldName) ++ show scopeType
     _ -> err $ "Name found but was not for an object, it was a " ++ show object
 
 
@@ -620,10 +637,14 @@ tcStatement (VariableDeclarationS Void varName _) _ = err $ "Variable " ++ varNa
 
 tcStatement (VariableDeclarationS varType varName maybeInitializer) scope = do
   case maybeInitializer of
-    Nothing -> sink scope D $ VarDecl varName varType
+    Nothing -> trace ("Adding Declaration for  " ++ varName ++ " in scope " ++ show scope) 
+      sink scope D $ VarDecl varName varType
     Just e -> do
       r <- tcExpr e scope
-      if r == varType then sink scope D $ VarDecl varName varType else err $ "Type missmatch expected: " ++ show varType ++ " but got " ++ show r
+      if r == varType 
+        then trace ("Adding Declaration for  " ++ varName ++ " in scope " ++ show scope) 
+              sink scope D $ VarDecl varName varType 
+        else err $ "Type missmatch expected: " ++ show varType ++ " but got " ++ show r
 
 
 tcStatement (ReturnS maybeExpr) scope =
@@ -763,6 +784,7 @@ runTC :: [JavaModule] -> Either String ((), Graph Label Decl)
 runTC e = un
         $ handle hErr
         $ handle_ hScope (tcProgram e) emptyGraph
+        -- $ handle_ hScope (causeMonotonicity2) emptyGraph
 
 -- runTCAll :: [Expr] -> Either String (Type, Graph Label Decl)
 -- runTCAll e = un
