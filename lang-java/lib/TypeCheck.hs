@@ -551,7 +551,7 @@ tcExpr (BinaryOpE expr1 op expr2) scope = do
 tcExpr (UnaryOpE op expr) scope = tcUnaryOp op expr scope
 
 tcExpr (NewE className args) scope = do
-  classDecl <- query scope classRe pShortest (matchDecl className)
+  classDecl <- query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchDecl className)
   case classDecl of
     [] -> err $ "Class " ++ className ++ " not found"
     [ClassDecl _ classScope] -> do

@@ -560,7 +560,7 @@ public class ClassA {
     public int x;
 
     public void method(){
-        this.helper(x);
+        helper(x);
         int x = 69;
         helper(x);
     }
@@ -633,6 +633,24 @@ byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classA
           (Just DefaultConstructor)
         )
 
+
+-- Haskell code:
+creatingAnImportedObject :: [JavaModule]
+creatingAnImportedObject = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "ModuleB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" []) ] ] False (Just DefaultConstructor))
+
+
 main :: IO ()
 main = do
-    print $ runTC nextedBlockPath
+    print $ runTC creatingAnImportedObject

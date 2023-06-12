@@ -135,10 +135,10 @@ byPassingLimitationUsingAveriableThenShadowingitTest = do
   t <- runFullTCTest byPassingLimitationUsingAveriableThenShadowingit
   return $ fst t
 
--- Test :: IO ()
--- Test = do
---   t <- runFullTCTest 
---   return $ fst t
+creatingAnImportedObjectTest :: IO ()
+creatingAnImportedObjectTest = do
+  t <- runFullTCTest creatingAnImportedObject
+  return $ fst t
 
 
 -- Test :: IO ()
@@ -183,8 +183,8 @@ tests = TestList
       "breakStatemtnsTest" ~: breakStatemtnsTest,
       -- "nextedBlockPathTest" ~: nextedBlockPathTest, --false positive
       "usingAnImportInFieldTest" ~: usingAnImportInFieldTest,
-      "byPassingLimitationUsingAveriableThenShadowingitTest" ~: byPassingLimitationUsingAveriableThenShadowingitTest
-
+      "byPassingLimitationUsingAveriableThenShadowingitTest" ~: byPassingLimitationUsingAveriableThenShadowingitTest,
+      "creatingAnImportedObjectTest" ~: creatingAnImportedObjectTest
     ]
 
 

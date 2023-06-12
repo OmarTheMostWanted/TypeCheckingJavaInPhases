@@ -806,3 +806,89 @@ byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classA
           False
           (Just DefaultConstructor)
         )
+
+
+
+
+{-
+
+
+package ModuleB;
+
+public class ClassB {
+
+}
+
+
+package ModuleA;
+
+import ModuleB.ClassB;
+
+public class ClassA {
+    public void method(){
+        ClassB b = new ClassB();
+    } 
+}
+
+
+
+-}
+
+-- Haskell code:
+creatingAnImportedObject :: [JavaModule]
+creatingAnImportedObject = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "ModuleB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "" (Just $ NewE "ClassB" []) ] ] False (Just DefaultConstructor))
+
+
+
+
+{-
+
+
+package ModuleB;
+
+public class ClassB {
+
+}
+
+
+package ModuleA;
+
+import ModuleB.ClassB;
+
+public class ClassA {
+    public void method(){
+        ClassB b = new ClassB();
+    } 
+}
+
+
+
+-}
+
+-- Haskell code:
+creatingAnImportedObject :: [JavaModule]
+creatingAnImportedObject = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "ModuleB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "" (Just $ NewE "ClassB" []) ] ] False (Just DefaultConstructor))
