@@ -141,16 +141,16 @@ creatingAnImportedObjectTest = do
   return $ fst t
 
 
--- Test :: IO ()
--- Test = do
---   t <- runFullTCTest 
---   return $ fst t
+testingThisNameShodowingTest :: IO ()
+testingThisNameShodowingTest = do
+  t <- runFullTCTest testingThisNameShodowing
+  return $ fst t
 
 
--- Test :: IO ()
--- Test = do
---   t <- runFullTCTest 
---   return $ fst t
+completeTestTest :: IO ()
+completeTestTest = do
+  t <- runFullTCTest completeTest
+  return $ fst t
 
 
 -- Test :: IO ()
@@ -181,10 +181,12 @@ tests = TestList
       "usingControlFlowTest" ~: usingControlFlowTest,
       "usingControlFlow2Test" ~: usingControlFlow2Test,
       "breakStatemtnsTest" ~: breakStatemtnsTest,
-      -- "nextedBlockPathTest" ~: nextedBlockPathTest, --false positive
+      "nextedBlockPathTest" ~: nextedBlockPathTest, 
       "usingAnImportInFieldTest" ~: usingAnImportInFieldTest,
       "byPassingLimitationUsingAveriableThenShadowingitTest" ~: byPassingLimitationUsingAveriableThenShadowingitTest,
-      "creatingAnImportedObjectTest" ~: creatingAnImportedObjectTest
+      "creatingAnImportedObjectTest" ~: creatingAnImportedObjectTest,
+      "testingThisNameShodowingTest" ~: testingThisNameShodowingTest,
+      "completeTestTest" ~: completeTestTest
     ]
 
 

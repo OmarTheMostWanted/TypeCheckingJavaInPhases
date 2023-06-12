@@ -651,6 +651,71 @@ creatingAnImportedObject = [JavaModule "ModuleB" [classBCompilationUnit] , JavaM
             (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" []) ] ] False (Just DefaultConstructor))
 
 
+
+completeTest :: [JavaModule]
+completeTest = [moduleA , moduleB]
+    where
+        moduleA :: JavaModule
+        moduleA = JavaModule "ModuleA" [classACompilationUnit]
+        classACompilationUnit :: CompilationUnit
+        classACompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassA"
+                [ FieldDeclaration BooleanType "x" Nothing
+                , MethodDeclaration
+                    (Just IntType)
+                    "method"
+                    []
+                    [ VariableDeclarationS IntType "count" (Just (LiteralE (IntLiteral 0)))
+                    , WhileS (BinaryOpE (VariableIdE "count") ComparasionOp (LiteralE (IntLiteral 69)))
+                        [ IfS (MethodCallE "helper" [])
+                            [ ReturnS (Just (VariableIdE "count")) ]
+                            $ Just [ ExpressionS (MethodCallE "helper" []) ]
+                        ]
+                    , ReturnS (Just (VariableIdE "count"))
+                    ]
+                , MethodDeclaration
+                    (Just BooleanType)
+                    "helper"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]
+                ]
+                False
+                (Just DefaultConstructor)
+                )
+        moduleB :: JavaModule
+        moduleB = JavaModule "ModuleB" [classBCompilationUnit]
+        classBCompilationUnit :: CompilationUnit
+        classBCompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassB"
+                [ FieldDeclaration StringType "name" Nothing
+                , FieldDeclaration IntType "age" Nothing              
+                , MethodDeclaration
+                    (Just StringType)
+                    "tellMe"
+                    [ Parameter IntType "age" ]
+                    [ AssignmentS (FieldAccessE ThisE "age") (VariableIdE "age")
+                    , VariableDeclarationS StringType "res" (Just (BinaryOpE (LiteralE (StringLiteral "na name is")) StringConcatOp (FieldAccessE ThisE "name")))
+                    , ReturnS (Just (VariableIdE "res"))
+                    ]
+                ]
+                False
+                (Just (Constructor [ Parameter IntType "name"
+                                        , Parameter StringType "age"
+                                        ]
+                                        [ AssignmentS (FieldAccessE ThisE "name") (VariableIdE "age")
+                                        , AssignmentS (FieldAccessE ThisE "age") (VariableIdE "name")
+                                        ]))
+                )
+
+
+
+
 main :: IO ()
 main = do
-    print $ runTC creatingAnImportedObject
+    print $ runTC completeTest

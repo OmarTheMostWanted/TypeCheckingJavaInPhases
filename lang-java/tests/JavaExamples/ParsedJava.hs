@@ -9,6 +9,8 @@ package ModuleA;
 
 public class MyClass {
 
+    boolean x;
+
     public int myMethod(){
         ClassA a = new ClassA(9);
         int res = a.x;
@@ -76,7 +78,7 @@ testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = 
         myClassDeclaration =
             ClassDeclaration {
                 className = "MyClass",
-                members = [myMethodDeclaration],
+                members = [FieldDeclaration BooleanType "x" Nothing,myMethodDeclaration],
                 isStatic = False,
                 constructor = Nothing
             }
@@ -852,7 +854,6 @@ creatingAnImportedObject = [JavaModule "ModuleB" [classBCompilationUnit] , JavaM
 
 
 
-
 {-
 
 
@@ -860,35 +861,116 @@ package ModuleB;
 
 public class ClassB {
 
+    String name;
+    int age;
+
+    public ClassB(int name, String age){
+        this.name = age;
+        this.age = name;
+    }
+
+    public String tellMe(int age){
+
+        this.age = age;
+
+        String res = "na name is" + this.name;
+
+        return res;
+    }
+
 }
+
 
 
 package ModuleA;
 
-import ModuleB.ClassB;
+public  class ClassA {
+    public boolean x;
 
-public class ClassA {
-    public void method(){
-        ClassB b = new ClassB();
-    } 
+    public int method(){
+
+        int count = 0;
+
+        while (count < 69){
+
+            if (helper()){
+                return count;
+            } else {
+                helper();
+            }
+
+        }
+
+        return count;
+    }
+
+
+    public boolean helper(){
+        return x;
+    }
+
 }
-
-
 
 -}
 
--- Haskell code:
-creatingAnImportedObject :: [JavaModule]
-creatingAnImportedObject = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
-  where
-    classBCompilationUnit :: CompilationUnit
-    classBCompilationUnit =
-      CompilationUnit
-        []
-        (ClassDeclaration "ClassB" [] False (Just DefaultConstructor))
 
-    classACompilationUnit :: CompilationUnit
-    classACompilationUnit =
-        CompilationUnit
-            [ ImportDeclaration "ModuleB" "ClassB" ]
-            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "" (Just $ NewE "ClassB" []) ] ] False (Just DefaultConstructor))
+completeTest :: [JavaModule]
+completeTest = [moduleA , moduleB]
+    where
+        moduleA :: JavaModule
+        moduleA = JavaModule "ModuleA" [classACompilationUnit]
+        classACompilationUnit :: CompilationUnit
+        classACompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassA"
+                [ FieldDeclaration BooleanType "x" Nothing
+                , MethodDeclaration
+                    (Just IntType)
+                    "method"
+                    []
+                    [ VariableDeclarationS IntType "count" (Just (LiteralE (IntLiteral 0)))
+                    , WhileS (BinaryOpE (VariableIdE "count") ComparasionOp (LiteralE (IntLiteral 69)))
+                        [ IfS (MethodCallE "helper" [])
+                            [ ReturnS (Just (VariableIdE "count")) ]
+                            $ Just [ ExpressionS (MethodCallE "helper" []) ]
+                        ]
+                    , ReturnS (Just (VariableIdE "count"))
+                    ]
+                , MethodDeclaration
+                    (Just BooleanType)
+                    "helper"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]
+                ]
+                False
+                (Just DefaultConstructor)
+                )
+        moduleB :: JavaModule
+        moduleB = JavaModule "ModuleB" [classBCompilationUnit]
+        classBCompilationUnit :: CompilationUnit
+        classBCompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassB"
+                [ FieldDeclaration StringType "name" Nothing
+                , FieldDeclaration IntType "age" Nothing              
+                , MethodDeclaration
+                    (Just StringType)
+                    "tellMe"
+                    [ Parameter IntType "age" ]
+                    [ AssignmentS (FieldAccessE ThisE "age") (VariableIdE "age")
+                    , VariableDeclarationS StringType "res" (Just (BinaryOpE (LiteralE (StringLiteral "na name is")) StringConcatOp (FieldAccessE ThisE "name")))
+                    , ReturnS (Just (VariableIdE "res"))
+                    ]
+                ]
+                False
+                (Just (Constructor [ Parameter IntType "name"
+                                        , Parameter StringType "age"
+                                        ]
+                                        [ AssignmentS (FieldAccessE ThisE "name") (VariableIdE "age")
+                                        , AssignmentS (FieldAccessE ThisE "age") (VariableIdE "name")
+                                        ]))
+                )

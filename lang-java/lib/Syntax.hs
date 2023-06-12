@@ -35,6 +35,7 @@ data BinaryOp
     | BooleanOp                      -- Represents boolean operators (e.g., '&&', '||') can be used as long as both sides are of boolean type
     | ArithmaticOp                   -- Represents arithmetic operators (e.g., '+', '-', '*', '/') can be used as long as both sides are a Number
     | StringConcatOp                 -- Represents string concatenation operator '+' can only be used when both sides are string
+    | ComparasionOp                  -- Represents comparing any number type. (eg > >= < <=)
     deriving (Eq, Show)
 
 -- Data type for unary operators
@@ -118,21 +119,3 @@ data Constructor = Constructor {               -- A constructor definiton when a
 -- Data type for Method Parameter
 data MethodParameter = Parameter JavaType String -- Represents method parameters with a Java type and parameter name
     deriving (Eq, Show)
-
- {-
- 
- 
- type checking is hard, (scope graphs) sematics for name binding
- how to order type checking (with statix it takes care of stable querying)
-
- How bad is this in practice, can you we get the benifits of using scope graphs without the comelexity of statixs 
-Manually phasing the type checking is usefull 
-
-================================================================
-How do we do it?? using scope graphs
-How difficult is it to do it in phases and how many phases we need.
-================================================================
-
-
-
- -}

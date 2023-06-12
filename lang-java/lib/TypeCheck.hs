@@ -273,7 +273,7 @@ tcClassConstructor (Just (Constructor params body)) classScope = do
   edge methodScope P classScope
   trace ("Adding Constructor parameters to scope" ++ show methodScope)
     mapM_ (`addParamToMethodScope` methodScope) params
-  returnType <- tcBlock Nothing False body methodScope
+  returnType <- trace ("Type checking constructor body with scope " ++ show methodScope) tcBlock Nothing False body methodScope
   case removeVoid returnType of
     Nothing -> return ()
     _ -> err "Constructor returns something"
@@ -288,11 +288,11 @@ tcClassMemebers m classScope =
       actualType <- tcExpr val classScope
       if actualType == ft then return () else err $ "Type missmatch in Field " ++ name ++ " expected " ++ show ft ++ " actual " ++ show actualType
     (FieldDeclaration _ _ Nothing) -> return ()
-    (MethodDeclaration rt _ params body) -> do
+    (MethodDeclaration rt n params body) -> do
       methodScope <- new
       edge methodScope P classScope
       mapM_ (`addParamToMethodScope` methodScope) params
-      actual <- tcBlock rt False body methodScope
+      actual <- trace ("Type checking method the body of method " ++ show n ++ " with scope " ++ show methodScope) tcBlock rt False body methodScope
       if rt == removeVoid actual 
         then return () 
         else err $ "Method declared return type and actual return type don't match expected: " ++ show rt ++ " actual: " ++ show actual
@@ -304,13 +304,9 @@ addParamToMethodScope (Parameter t  n) methodScope = do
   trace ("Adding paramter to method scope " ++ show  (VarDecl n t ))
     sink methodScope D $ VarDecl n t
 
--- Pase 3: Step 2.0 Add declarations to scope in blocks, recusivle called on statments with dedicated blocks
-addDeclarationsInBlock :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Statement -> Sc -> Free f (Maybe JavaType)
-addDeclarationsInBlock (IfS e [is] (Just es)) scope = return Nothing
 
-
-
-
+-- Phase 3: Step 2.0 type check blocks this function is meant for the method scope, where it needs special rules for return statemtns
+--  recusivle called on statments with dedicated blocks
 tcBlock :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe JavaType -> Bool -> [Statement] -> Sc -> Free f (Maybe JavaType)
 tcBlock rt _ [] _ = validateReturn rt Nothing
 tcBlock rt _ [ReturnS Nothing] _ = validateReturn rt (Just Void)
@@ -332,7 +328,8 @@ tcBlock rt l ((AssignmentS n e):rest) scope = do
 tcBlock rt l [IfS e t Nothing] scope = do -- when the retun type is not void, after an if statemnt there must be another return
   tcStatement (IfS e t Nothing) scope
   trueBranchScope <- new
-  edge trueBranchScope P scope
+  trace ("Added trueBranchScope nested scope " ++ show trueBranchScope ++ " to scope " ++ show scope)
+    edge trueBranchScope P scope
   trueBranch <- tcBlock rt l t trueBranchScope
   case rt of
     Nothing -> validateReturn rt trueBranch
@@ -342,10 +339,12 @@ tcBlock rt l [IfS e t Nothing] scope = do -- when the retun type is not void, af
 tcBlock rt l [IfS e t (Just f)] scope = do
   tcStatement (IfS e t (Just f)) scope
   trueBranchScope <- new
-  edge trueBranchScope P scope
-  trueBranchReturn <- tcBlock rt l t trueBranchScope
+  trace ("Added trueBranchScope nested scope " ++ show trueBranchScope ++ " to scope " ++ show scope)
+    edge trueBranchScope P scope
   falseBranchScope <- new
-  edge falseBranchScope P scope
+  trace ("Added falseBranchScope nested scope " ++ show falseBranchScope ++ " to scope " ++ show scope)
+    edge falseBranchScope P scope
+  trueBranchReturn <- tcBlock rt l t trueBranchScope
   falseBranchReturn <- tcBlock rt l f falseBranchScope
   validateReturn rt trueBranchReturn
   validateReturn rt falseBranchReturn
@@ -354,12 +353,13 @@ tcBlock rt l [IfS e t (Just f)] scope = do
 tcBlock rt l ((IfS e t Nothing):rest) scope = do
   tcStatement (IfS e t Nothing) scope
   trueBranchScope <- new
-  edge trueBranchScope P scope
+  trace ("Added trueBranchScope nested scope " ++ show trueBranchScope ++ " to scope " ++ show scope)
+    edge trueBranchScope P scope
   trueBranchReturn <- tcNestedBlock l t trueBranchScope
   case trueBranchReturn of
     (Just _) -> do
-      validateReturn rt trueBranchReturn
       restReturn <- tcBlock rt l rest scope
+      validateReturn rt trueBranchReturn
       validateReturn rt restReturn
     Nothing -> do
       restReturn <- tcBlock rt l rest scope
@@ -369,10 +369,12 @@ tcBlock rt l ((IfS e t Nothing):rest) scope = do
 tcBlock rt l ((IfS e t (Just f)):rest) scope = do
   tcStatement (IfS e t (Just f)) scope
   trueBranchScope <- new
-  edge trueBranchScope P scope
-  trueBranchReturn <- tcNestedBlock l t trueBranchScope
+  trace ("Added trueBranchScope nested scope " ++ show trueBranchScope ++ " to scope " ++ show scope)
+    edge trueBranchScope P scope
   falseBranchScope <- new
-  edge falseBranchScope P scope
+  trace ("Added falseBranchScope nested scope " ++ show falseBranchScope ++ " to scope " ++ show scope)
+    edge falseBranchScope P scope
+  trueBranchReturn <- tcNestedBlock l t trueBranchScope
   falseBranchReturn <- tcNestedBlock l f falseBranchScope
   restReturn <- tcBlock rt l rest scope
 
@@ -390,7 +392,8 @@ tcBlock rt l ((IfS e t (Just f)):rest) scope = do
 tcBlock rt _ [WhileS e loopBody] scope = do
   tcStatement (WhileS e loopBody) scope
   loopScope <- new
-  edge loopScope P scope
+  trace ("Added loop nested scope " ++ show loopScope ++ " to scope " ++ show scope)
+    edge loopScope P scope
   loopReturn <- trace ("tcNestedBlock while loop body with scope " ++ show loopScope) tcNestedBlock True loopBody loopScope
   case rt of
     Nothing -> validateReturn rt loopReturn
@@ -399,20 +402,26 @@ tcBlock rt _ [WhileS e loopBody] scope = do
 tcBlock rt l ((WhileS e loopBody):rest) scope = do
   tcStatement (WhileS e loopBody) scope
   loopScope <- new
+  trace ("Added loop nested scope " ++ show loopScope ++ " to scope " ++ show scope)
+    edge loopScope P scope
   loopReturn <- tcNestedBlock True loopBody loopScope
   case loopReturn of
     (Just _) -> do
-      validateReturn rt loopReturn
       restReturn <- tcBlock rt l rest scope
+      validateReturn rt loopReturn
       validateReturn rt restReturn
     Nothing -> do
       restReturn <- tcBlock rt l rest scope
       validateReturn rt restReturn
 
 
-tcBlock rt l ((VariableDeclarationS t s e):rest) scope = do
-  tcStatement (VariableDeclarationS t s e) scope
-  tcBlock rt l rest scope
+tcBlock rt l ((VariableDeclarationS t s maybeInitializer):rest) scope = do
+  tcStatement (VariableDeclarationS t s maybeInitializer) scope
+  newScope <- new
+  edge newScope P scope
+  trace ("Adding declaration for variable " ++ s ++ " in scope " ++ show newScope ++ " that has a P edge to scope " ++ show scope) 
+    sink newScope D $ VarDecl s t
+  tcBlock rt l rest newScope
 
 tcBlock rt l ((ExpressionS e):rest) scope = do
   tcStatement (ExpressionS e) scope
@@ -442,17 +451,20 @@ tcNestedBlock l ((AssignmentS n e):rest) scope = do
 tcNestedBlock l [IfS e t Nothing] scope = do
   tcStatement (IfS e t Nothing) scope
   trueBranchScope <- new
-  edge trueBranchScope P scope
+  trace ("Added true branch nested scope " ++ show trueBranchScope ++ " to nested scope " ++ show scope)
+    edge trueBranchScope P scope
   tcNestedBlock l t trueBranchScope
 
 
 tcNestedBlock l [IfS e t (Just f)] scope = do
   tcStatement (IfS e t (Just f)) scope
   trueBranchScope <- new
-  edge trueBranchScope P scope
-  trueBranchReturn <- tcNestedBlock l t trueBranchScope
+  trace ("Added true branch nested scope " ++ show trueBranchScope ++ " to nested scope " ++ show scope)
+    edge trueBranchScope P scope
   falseBranchScope <- new
-  edge falseBranchScope P scope
+  trace ("Added false branch nested scope " ++ show falseBranchScope ++ " to nested scope " ++ show scope)
+    edge falseBranchScope P scope
+  trueBranchReturn <- tcNestedBlock l t trueBranchScope
   falseBranchReturn <- tcNestedBlock l f falseBranchScope
   validateSameReturn trueBranchReturn falseBranchReturn
 
@@ -460,7 +472,8 @@ tcNestedBlock l [IfS e t (Just f)] scope = do
 tcNestedBlock l ((IfS e t Nothing):rest) scope = do
   tcStatement (IfS e t Nothing) scope
   trueBranchScope <- new
-  edge trueBranchScope P scope
+  trace ("Added true branch nested scope " ++ show trueBranchScope ++ " to nested scope " ++ show scope)
+    edge trueBranchScope P scope
   trueBranchReturn <- tcNestedBlock l t trueBranchScope
   case trueBranchReturn of
     (Just _) -> do
@@ -474,10 +487,12 @@ tcNestedBlock l ((IfS e t Nothing):rest) scope = do
 tcNestedBlock l ((IfS e t (Just f)):rest) scope = do
   tcStatement (IfS e t (Just f)) scope
   trueBranchScope <- new
-  edge trueBranchScope P scope
-  trueBranchReturn <- tcNestedBlock l t trueBranchScope
+  trace ("Added true branch nested scope " ++ show trueBranchScope ++ " to nested scope " ++ show scope)
+    edge trueBranchScope P scope
   falseBranchScope <- new
-  edge falseBranchScope P scope
+  trace ("Added false branch nested scope " ++ show falseBranchScope ++ " to nested scope " ++ show scope)
+    edge falseBranchScope P scope
+  trueBranchReturn <- tcNestedBlock l t trueBranchScope
   falseBranchReturn <- tcNestedBlock l f falseBranchScope
   restReturn <- tcNestedBlock l rest scope
 
@@ -493,11 +508,15 @@ tcNestedBlock l ((IfS e t (Just f)):rest) scope = do
 tcNestedBlock _ [WhileS e loopBody] scope = do
   tcStatement (WhileS e loopBody) scope
   loopScope <- new
+  trace ("Added loop nested scope " ++ show loopScope ++ " to nested scope " ++ show scope)
+    edge loopScope P scope
   tcNestedBlock True loopBody loopScope
 
 tcNestedBlock l ((WhileS e loopBody):rest) scope = do
   tcStatement (WhileS e loopBody) scope
   loopScope <- new
+  trace ("Added loop nested scope " ++ show loopScope ++ " to nested scope " ++ show scope)
+    edge loopScope P scope
   loopReturn <- tcNestedBlock True loopBody loopScope
   case loopReturn of
     (Just _) -> do
@@ -509,6 +528,10 @@ tcNestedBlock l ((WhileS e loopBody):rest) scope = do
 
 tcNestedBlock l ((VariableDeclarationS t s e):rest) scope = do
   tcStatement (VariableDeclarationS t s e) scope
+  newScope <- new
+  edge newScope P scope
+  trace ("Adding Declaration for  variable " ++ s ++ " in scope " ++ show newScope ++ " that has a P edge to scope " ++ show scope) 
+    sink newScope D $ VarDecl s t
   tcNestedBlock l rest scope
 
 tcNestedBlock l ((ExpressionS e):rest) scope = do
@@ -534,7 +557,7 @@ tcExpr (VariableIdE varName) scope = do
     _ -> err $ "More than one Decl of variable " ++ varName ++ " found"
 
 tcExpr (MethodCallE methodName args) scope = do
-  methodDecl <- query scope re pShortest (matchDecl methodName)
+  methodDecl <- trace ("Searching for method " ++ methodName ++ " in scope " ++ show scope) query scope (Dot (Star $ Atom P)  $ Atom D) pShortest (matchDecl methodName) -- static method imports not implemented
   case methodDecl of
     [MethodDecl _ (Just rt) params] -> do
       tcMethodArgs params args scope
@@ -542,7 +565,7 @@ tcExpr (MethodCallE methodName args) scope = do
     [MethodDecl _ Nothing params] -> do
       tcMethodArgs params args scope
       return Void
-    [] -> err $ "Method " ++ methodName ++ " Not Found"
+    [] -> err $ "Method " ++ methodName ++ " Not Found in class with scope " ++ show scope 
     _ -> err $ "More than one Decl of method " ++ methodName ++ " found"  --  TODO  overriding and overlaoding????? an adtional step to find a method that matches the used args
 
 tcExpr (BinaryOpE expr1 op expr2) scope = do
@@ -553,7 +576,7 @@ tcExpr (UnaryOpE op expr) scope = tcUnaryOp op expr scope
 tcExpr (NewE className args) scope = do
   classDecl <- query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchDecl className)
   case classDecl of
-    [] -> err $ "Class " ++ className ++ " not found"
+    [] -> err $ "Class " ++ className ++ " not found from scope " ++ show scope
     [ClassDecl _ classScope] -> do
       constructorDecl <- query classScope re pShortest (matchDecl className)  -- change the regex so that only D paths are accepted
       case constructorDecl of
@@ -568,18 +591,18 @@ tcExpr (FieldAccessE expr fieldName) scope = do
   object <- tcExpr expr scope
   case object of
     (ObjectType objectName) -> do
-      scopeType <- trace ("Querying scope " ++ show scope ++ " for scope type " ++ objectName)
-        query scope (Dot (Star $ Atom P)  $ Atom T) pShortest (matchScopeType objectName)
-      case scopeType of
-        [] -> err $ "Class " ++ objectName ++ " not found"
-        [ScopeType name ] -> do
-          fieldDecl <- trace ("Querying scope " ++ show scope ++ " for varaible " ++ fieldName) 
-            query scope (Dot (Star $ Atom P)  $ Atom F)  pShortest (matchDecl fieldName)
+      classDecl <- trace ("Querying scope " ++ show scope ++ " for class " ++ objectName)
+        query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchDecl objectName)
+      case classDecl of
+        [] -> err $ "Class " ++ objectName ++ " not found in from scope " ++ show scope ++ " while type checking FieldAccessE"
+        [ClassDecl name classScope] -> do
+          fieldDecl <- trace ("Querying scope " ++ show classScope ++ " for varaible " ++ fieldName) 
+            query classScope (Dot (Star $ Atom P)  $ Atom F)  pShortest (matchDecl fieldName)
           case fieldDecl of
             [] -> err $ "Field " ++ fieldName ++ " not found in class " ++ name
             [VarDecl _ t] -> return t
             _ -> err "More than on deffiniton found"
-        _ -> err $ "More than one class found with name " ++ objectName ++ " while resolving " ++ show (FieldAccessE expr fieldName) ++ show scopeType
+        _ -> err $ "More than one class found with name " ++ objectName ++ " while resolving " ++ show (FieldAccessE expr fieldName) ++ show classDecl
     _ -> err $ "Name found but was not for an object, it was a " ++ show object
 
 
@@ -635,16 +658,13 @@ tcStatement (WhileS condExpr _) scope = do
 
 tcStatement (VariableDeclarationS Void varName _) _ = err $ "Variable " ++ varName ++ " can't be of type void"
 
-tcStatement (VariableDeclarationS varType varName maybeInitializer) scope = do
+tcStatement (VariableDeclarationS varType _ maybeInitializer) scope = do
   case maybeInitializer of
-    Nothing -> trace ("Adding Declaration for  " ++ varName ++ " in scope " ++ show scope) 
-      sink scope D $ VarDecl varName varType
+    Nothing -> return ()
     Just e -> do
       r <- tcExpr e scope
       if r == varType 
-        then trace ("Adding Declaration for  " ++ varName ++ " in scope " ++ show scope) 
-              sink scope D $ VarDecl varName varType 
-        else err $ "Type missmatch expected: " ++ show varType ++ " but got " ++ show r
+        then return () else err $ "Type missmatch expected: " ++ show varType ++ " but got " ++ show r
 
 
 tcStatement (ReturnS maybeExpr) scope =
@@ -701,7 +721,14 @@ tcBinaryOp StringConcatOp l r sc = do
       else err "Right side is not a string"
   else  err "Left side is not a string"
 
-
+tcBinaryOp ComparasionOp l r sc = do
+  actualL <- tcExpr l sc
+  actualR <- tcExpr r sc
+  if isNumber actualL then
+    if isNumber actualR
+      then return $ BooleanType
+      else err "Right side is not a number"
+  else  err "Left side is not a number"
 
 isNumber :: JavaType -> Bool
 isNumber IntType = True
@@ -761,6 +788,8 @@ validateSameReturn Nothing Nothing = return Nothing
 validateSameReturn (Just Void) (Just Void) = return (Just Void)
 validateSameReturn (Just Void) Nothing = return (Just Void)
 validateSameReturn Nothing (Just Void) = return (Just Void)
+validateSameReturn (Just a) Nothing = return (Just a)
+validateSameReturn Nothing (Just b) = return (Just b)
 validateSameReturn a b = if a == b then return a else err $ "If statment return missmatch if returns " ++ show a ++ " else returns " ++ show b
 
 
