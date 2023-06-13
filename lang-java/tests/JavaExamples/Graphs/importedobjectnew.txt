@@ -6,8 +6,8 @@
     5 -P-> 4
     6 -P-> 5
   sinks:
-    1 |-M-> ModuleDecl "ModuleA" 4
-    1 |-M-> ModuleDecl "ModuleB" 2
+    1 |-M-> PackageDecl "PackageA" 4
+    1 |-M-> PackageDecl "PackageB" 2
     2 |-Cl-> ClassDecl "ClassB" 3
     3 |-D-> ConstructorDecl "ClassB" []
     3 |-T-> ScopeType "ClassB"

@@ -17,7 +17,7 @@ data Label
   = P -- Lexical Parent Label
   | D -- Variable Declaration
   | I -- Import
-  | M -- Module Declaration
+  | M -- Package Declaration
   | Cl -- Class Declaration to resolve this keyword
   | T -- Scope Type Declaration 
   | F
@@ -30,7 +30,7 @@ data Decl
   = VarDecl String JavaType -- Variable declaration
   | MethodDecl String (Maybe JavaType) [MethodParameter]
   | ClassDecl String Sc
-  | ModuleDecl String Sc
+  | PackageDecl String Sc
   | ConstructorDecl String [MethodParameter]
   | ScopeType String -- To help I dentifie which type's scope this is declared in, helps later for multiple classes in one file and nested class's, as all classDecls can be in the same parent scope and can still be found from their own scope
   deriving (Show, Eq)
@@ -47,16 +47,16 @@ re :: RE Label
 re = Pipe (Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))) (Dot (Star $ Atom P)  $ Atom F)
 
 -- Regular expression P*M
-moduleRe :: RE Label
-moduleRe = Atom M
+packageRe :: RE Label
+packageRe = Atom M
 
 -- Regular expression P*Cl to resolve this
 classRe :: RE Label
 classRe = Dot (Star $ Atom P) $ Atom Cl
 
--- -- Find the nearest module
--- pCloserModule :: PathOrder Label Decl
--- pCloserModule p1 p2 = lenRPath p1 < lenRPath p2
+-- -- Find the nearest package
+-- pCloserPackage :: PathOrder Label Decl
+-- pCloserPackage p1 p2 = lenRPath p1 < lenRPath p2
 
 
 -- Path order based on length for shadowing
@@ -74,7 +74,7 @@ matchDecl x (VarDecl x' _) = x == x'
 matchDecl x (MethodDecl x' _ _) = x == x'
 matchDecl x (ClassDecl x' _) = x == x'
 matchDecl x (ConstructorDecl t _) = x == t
-matchDecl x (ModuleDecl x' _) = x == x'
+matchDecl x (PackageDecl x' _) = x == x'
 matchDecl x (ScopeType x') = x == x'
 
 
@@ -120,31 +120,31 @@ causeMonotonicity2 = do
 
 
 -- Phase 1: Step 0: start point for the type checker
-tcProgram :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaModule] -> Free f ()
+tcProgram :: (Functor f, Error String < f, Scope Sc Label Decl < f) => [JavaPackage] -> Free f ()
 tcProgram [] = return ()
-tcProgram modules = do
+tcProgram packages = do
   programScope <- new
-  mapM_ (`discoverModules` programScope) modules  -- Phase 1 (Module and Class Declarations)
-  mapM_ (`tcModule` programScope) modules -- Phase 2 (Class memeber Declaration and left side validation)
-  mapM_ (`tcValues` programScope) modules -- Phaes 3 (Values and Method bodies)
+  mapM_ (`discoverPackages` programScope) packages  -- Phase 1 (Package and Class Declarations)
+  mapM_ (`tcPackage` programScope) packages -- Phase 2 (Class memeber Declaration and left side validation)
+  mapM_ (`tcValues` programScope) packages -- Phaes 3 (Values and Method bodies)
 
--- Phase 1: Step 1: Discover all Modules
-discoverModules :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaModule  -> Sc -> Free f ()
-discoverModules (JavaModule n cus) programScope = do
-  moduleScope <- new
-  trace ("Adding Module Declaration " ++ show (ModuleDecl n moduleScope) ++ " to scope " ++ show programScope) sink programScope M $ ModuleDecl n moduleScope
-  edge moduleScope P programScope
-  mapM_ (`discoverModuleClasses` moduleScope) cus
+-- Phase 1: Step 1: Discover all Packages
+discoverPackages :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaPackage  -> Sc -> Free f ()
+discoverPackages (JavaPackage n cus) programScope = do
+  packageScope <- new
+  trace ("Adding Package Declaration " ++ show (PackageDecl n packageScope) ++ " to scope " ++ show programScope) sink programScope M $ PackageDecl n packageScope
+  edge packageScope P programScope
+  mapM_ (`discoverPackageClasses` packageScope) cus
 
 
--- Phase 1: Step 2: Discover all classes in a module
-discoverModuleClasses :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
-discoverModuleClasses (CompilationUnit _ (ClassDeclaration className _ isStatic constructor)) moduleScope = do
+-- Phase 1: Step 2: Discover all classes in a package
+discoverPackageClasses :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
+discoverPackageClasses (CompilationUnit _ (ClassDeclaration className _ isStatic constructor)) packageScope = do
   classScope <- new
-  edge classScope P moduleScope
+  edge classScope P packageScope
 
-  trace ("Adding Class Declaration " ++ show (ClassDecl className classScope) ++ " to scope " ++ show moduleScope)
-    sink moduleScope Cl $ ClassDecl className classScope
+  trace ("Adding Class Declaration " ++ show (ClassDecl className classScope) ++ " to scope " ++ show packageScope)
+    sink packageScope Cl $ ClassDecl className classScope
 
   trace ("Giving scope " ++ show classScope ++ " type " ++ className)
     sink classScope T $ ScopeType className
@@ -153,22 +153,22 @@ discoverModuleClasses (CompilationUnit _ (ClassDeclaration className _ isStatic 
     (Just _) -> err $ "Static class " ++ className ++ " is static but has a constructor"
     _ -> return ()
 
--- Phase 2: Per Module, Discover all class members, add imports, validate class member types
-tcModule :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaModule -> Sc -> Free f ()
-tcModule (JavaModule n cu) programScope = do
-  moduleDecl <- query programScope moduleRe pShortest (matchDecl n)
-  case moduleDecl of
-    [] -> err $ "Module " ++ n ++ " not found"
-    [ModuleDecl _ moduleScope] -> do
-      mapM_ (`tcClassMemberDeclarations` moduleScope) cu
-      -- tcMemebreValues cu moduleScope
-    _ -> err $ "Ambiguity in module name " ++ n
+-- Phase 2: Per Package, Discover all class members, add imports, validate class member types
+tcPackage :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaPackage -> Sc -> Free f ()
+tcPackage (JavaPackage n cu) programScope = do
+  packageDecl <- query programScope packageRe pShortest (matchDecl n)
+  case packageDecl of
+    [] -> err $ "Package " ++ n ++ " not found"
+    [PackageDecl _ packageScope] -> do
+      mapM_ (`tcClassMemberDeclarations` packageScope) cu
+      -- tcMemebreValues cu packageScope
+    _ -> err $ "Ambiguity in package name " ++ n
 
 
 -- Phase 2: Per Class, Validate imports, Add class constructor, add Members
 tcClassMemberDeclarations :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
-tcClassMemberDeclarations (CompilationUnit imports (ClassDeclaration className memebers _ constructor)) moduleScope = do
-  classDecl <- query moduleScope classRe pShortest (matchDecl className)
+tcClassMemberDeclarations (CompilationUnit imports (ClassDeclaration className memebers _ constructor)) packageScope = do
+  classDecl <- query packageScope classRe pShortest (matchDecl className)
   case classDecl of
     [ClassDecl _ classScope] -> do
       trace ("Resolving imports for class " ++ className ++ " with scope " ++ show classScope)
@@ -185,18 +185,18 @@ tcClassMemberDeclarations (CompilationUnit imports (ClassDeclaration className m
 -- Phase 2: Step 1 (Resove Imports)
 tcImports :: (Functor f, Error String < f, Scope Sc Label Decl < f) => ImportDeclaration -> Sc -> Free f ()
 tcImports (ImportDeclaration m c) classScope = do
-  moduleToSearch <- query classScope (Dot (Star $ Atom P) (Atom M)) pShortest (matchDecl m)
-  case moduleToSearch of
-    [] -> err $ "Imported module " ++ m ++ " not found"
-    [ModuleDecl n moduleScope] -> do
-      classToImport <- query moduleScope (Atom Cl) pShortest (matchDecl c)
+  packageToSearch <- query classScope (Dot (Star $ Atom P) (Atom M)) pShortest (matchDecl m)
+  case packageToSearch of
+    [] -> err $ "Imported package " ++ m ++ " not found"
+    [PackageDecl n packageScope] -> do
+      classToImport <- query packageScope (Atom Cl) pShortest (matchDecl c)
       case classToImport of
-        [] -> err $ "Imported Class " ++ c ++ " not found in module " ++ n
+        [] -> err $ "Imported Class " ++ c ++ " not found in package " ++ n
         [ClassDecl c importedClassScope] -> 
-          trace ("Imported class " ++ c ++ " from module " ++ m ++ " into scope " ++ show classScope)
+          trace ("Imported class " ++ c ++ " from package " ++ m ++ " into scope " ++ show classScope)
             edge classScope I importedClassScope
         _ -> err $ "Ambiguity imported class name " ++ c
-    _ -> err $ "Ambiguity in imported module name" ++ m
+    _ -> err $ "Ambiguity in imported package name" ++ m
 
 -- Pase 2: Step 2 (Validate Constructor Declaration)
 addClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe Constructor -> String -> Sc -> Free f ()
@@ -243,21 +243,21 @@ checkIfTypeIsVisibleInScope (ObjectType typeName) classScope = do
     _ -> err $ "Ambiguity in type " ++ typeName ++ " found multiple matchs " ++ show match
 checkIfTypeIsVisibleInScope _ _ = return ()
 
--- Phase 3: Step 0 Per Module Per Class Check right hand side of fields and method values
-tcValues :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaModule -> Sc -> Free f ()
-tcValues (JavaModule name cu) programScope = do
-  moduleD <- query programScope (Atom M) pShortest (matchDecl name)
-  case moduleD of
-    [] -> err $ "In phase 3, module " ++ name ++ " was not found"
-    [ModuleDecl _ moduleScope] -> do
-      mapM_ (`tcMemebreValues` moduleScope) cu
-    _ -> err $ "In phase 3, more than one module with name " ++ name ++ " was found matches: " ++  show moduleD
+-- Phase 3: Step 0 Per Package Per Class Check right hand side of fields and method values
+tcValues :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaPackage -> Sc -> Free f ()
+tcValues (JavaPackage name cu) programScope = do
+  packageD <- query programScope (Atom M) pShortest (matchDecl name)
+  case packageD of
+    [] -> err $ "In phase 3, package " ++ name ++ " was not found"
+    [PackageDecl _ packageScope] -> do
+      mapM_ (`tcMemebreValues` packageScope) cu
+    _ -> err $ "In phase 3, more than one package with name " ++ name ++ " was found matches: " ++  show packageD
       
 
 -- Phase 3: Step 1.0: Per clas Type check right hand side of fields along with method bodies and cosntructor body
 tcMemebreValues :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
-tcMemebreValues (CompilationUnit _ (ClassDeclaration className memebers _ constructor)) moduleScope = do
-  classDecl <- query moduleScope classRe pShortest (matchDecl className)
+tcMemebreValues (CompilationUnit _ (ClassDeclaration className memebers _ constructor)) packageScope = do
+  classDecl <- query packageScope classRe pShortest (matchDecl className)
   case classDecl of
     [ClassDecl n classScope] -> do
       trace ("Type checking body and parameter of constructor of class " ++ show (ClassDecl n classScope)) 
@@ -809,7 +809,7 @@ tcLiteral NullLiteral = return Void -- Handle null literal case
 
 
 -- Tie it all together
-runTC :: [JavaModule] -> Either String ((), Graph Label Decl)
+runTC :: [JavaPackage] -> Either String ((), Graph Label Decl)
 runTC e = un
         $ handle hErr
         $ handle_ hScope (tcProgram e) emptyGraph

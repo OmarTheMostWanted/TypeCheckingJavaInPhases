@@ -69,10 +69,10 @@ data Statement
   | ExpressionS Expression                    -- Represents expression statements (could be anything but only usefull when the expression result is not used)
   deriving (Eq, Show)
 
--- Represents a Java module that can be imported
-data JavaModule = JavaModule {
-  moduleName :: String,               -- The name of the Java module
-  moduleMembers :: [CompilationUnit]  -- The list of compilation units (Java files) represting classes in the module
+-- Represents a Java package that can be imported
+data JavaPackage = JavaPackage {
+  packageName :: String,               -- The name of the Java package
+  packageMembers :: [CompilationUnit]  -- The list of compilation units (Java files) represting classes in the package
 }
 
 -- Data type for Compilation Unit represents a single Java file containing imports and a single public class
@@ -81,7 +81,7 @@ data CompilationUnit = CompilationUnit [ImportDeclaration] ClassDeclaration
 
 -- Data type for Import Declaration, for now Wild cards are not implemnted so a single class can be imported at a time
 data ImportDeclaration = ImportDeclaration {
-  moduleNToImport :: String,          -- The name of the module to import from
+  packageNToImport :: String,          -- The name of the package to import from
   classToImport :: String             -- The name of the class to import
 }
   deriving (Eq, Show)

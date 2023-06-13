@@ -5,7 +5,7 @@ import TypeCheck (tcClassConstructor)
 
 
 {-
-package ModuleA;
+package PackageA;
 
 public class MyClass {
 
@@ -20,7 +20,7 @@ public class MyClass {
 }
 
 
-package ModuleA;
+package PackageA;
 
 public class ClassA {
     int x;
@@ -32,8 +32,8 @@ public class ClassA {
 
 -}
 
-testingThisNameShodowing :: [JavaModule]
-testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = [compilationUnit, myClassCompilationUnit] }]
+testingThisNameShodowing :: [JavaPackage]
+testingThisNameShodowing = [JavaPackage {packageName = "PackageA", packageMembers = [compilationUnit, myClassCompilationUnit] }]
     where
         classAField :: Member
         classAField = FieldDeclaration IntType "x" Nothing
@@ -55,10 +55,10 @@ testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = 
         compilationUnit :: CompilationUnit
         compilationUnit = CompilationUnit [] classADeclaration
 
-        javaModule :: JavaModule
-        javaModule = JavaModule {
-        moduleName = "ModuleA",
-        moduleMembers = [compilationUnit]
+        javaPackage :: JavaPackage
+        javaPackage = JavaPackage {
+        packageName = "PackageA",
+        packageMembers = [compilationUnit]
         }
 
 
@@ -86,10 +86,10 @@ testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = 
         myClassCompilationUnit :: CompilationUnit
         myClassCompilationUnit = CompilationUnit [] myClassDeclaration
 
-        javaModuleWithMyClass :: JavaModule
-        javaModuleWithMyClass = JavaModule {
-            moduleName = "ModuleA",
-            moduleMembers = [compilationUnit, myClassCompilationUnit]
+        javaPackageWithMyClass :: JavaPackage
+        javaPackageWithMyClass = JavaPackage {
+            packageName = "PackageA",
+            packageMembers = [compilationUnit, myClassCompilationUnit]
             }
 
 
@@ -101,7 +101,7 @@ testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = 
 {-
 
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -118,8 +118,8 @@ public class ClassB {
 
 -}
 
-simplyClass :: [JavaModule]
-simplyClass = [JavaModule "ModuleB" [classBCompilationUnit]]
+simplyClass :: [JavaPackage]
+simplyClass = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -140,7 +140,7 @@ simplyClass = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -153,8 +153,8 @@ public class ClassB {
 
 -}
 
-usingField :: [JavaModule]
-usingField = [JavaModule "ModuleB" [classBCompilationUnit]]
+usingField :: [JavaPackage]
+usingField = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -176,7 +176,7 @@ usingField = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -193,8 +193,8 @@ public class ClassB {
 
 -}
 
-usingMethods :: [JavaModule]
-usingMethods = [JavaModule "ModuleB" [classBCompilationUnit]]
+usingMethods :: [JavaPackage]
+usingMethods = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -221,7 +221,7 @@ usingMethods = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
     public int x = 60;
@@ -234,8 +234,8 @@ public class ClassB {
 
 -}
 
-usingFieldAndMethod :: [JavaModule]
-usingFieldAndMethod = [JavaModule "ModuleB" [classBCompilationUnit]]
+usingFieldAndMethod :: [JavaPackage]
+usingFieldAndMethod = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -256,7 +256,7 @@ usingFieldAndMethod = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
     public int whatIsMyFavNumber() {
@@ -273,8 +273,8 @@ public class ClassB {
 
 -}
 
-usingConditional :: [JavaModule]
-usingConditional = [JavaModule "ModuleB" [classBCompilationUnit]]
+usingConditional :: [JavaPackage]
+usingConditional = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -301,7 +301,7 @@ usingConditional = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
     public int whatIsMyFavNumber() {
@@ -317,8 +317,8 @@ public class ClassB {
 
 -}
 
-usingConditionalNoElse :: [JavaModule]
-usingConditionalNoElse = [JavaModule "ModuleB" [classBCompilationUnit]]
+usingConditionalNoElse :: [JavaPackage]
+usingConditionalNoElse = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -344,7 +344,7 @@ usingConditionalNoElse = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 
 {-
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -453,8 +453,8 @@ public class ClassB {
 }
 -}
 
-usingControlFlow :: [JavaModule]
-usingControlFlow = [JavaModule "ModuleB" [classBCompilationUnit]]
+usingControlFlow :: [JavaPackage]
+usingControlFlow = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -540,7 +540,7 @@ usingControlFlow = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 
 {-
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -565,8 +565,8 @@ public class ClassB {
 }
 -}
 
-usingControlFlow2 :: [JavaModule]
-usingControlFlow2 = [JavaModule "ModuleB" [classBCompilationUnit]]
+usingControlFlow2 :: [JavaPackage]
+usingControlFlow2 = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -609,7 +609,7 @@ usingControlFlow2 = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -630,8 +630,8 @@ public class ClassB {
 
 -}
 
-breakStatemtns :: [JavaModule]
-breakStatemtns = [JavaModule "ModuleB" [CompilationUnit [] classB]]
+breakStatemtns :: [JavaPackage]
+breakStatemtns = [JavaPackage "PackageB" [CompilationUnit [] classB]]
     where
         classB :: ClassDeclaration
         classB =
@@ -653,7 +653,7 @@ breakStatemtns = [JavaModule "ModuleB" [CompilationUnit [] classB]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -670,8 +670,8 @@ public class ClassB {
 
 -}
 
-nextedBlockPath :: [JavaModule]
-nextedBlockPath = [JavaModule "ModuleB" [CompilationUnit [] classB]]
+nextedBlockPath :: [JavaPackage]
+nextedBlockPath = [JavaPackage "PackageB" [CompilationUnit [] classB]]
     where
         classB :: ClassDeclaration
         classB =
@@ -692,16 +692,16 @@ nextedBlockPath = [JavaModule "ModuleB" [CompilationUnit [] classB]]
 {-
 
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
 }
 
 
-package ModuleA;
+package PackageA;
 
-import ModuleB.ClassB;
+import PackageB.ClassB;
 
 public class ClassA {
     public ClassB x;
@@ -712,8 +712,8 @@ public class ClassA {
 -}
 
 -- Haskell code:
-usingAnImportInField :: [JavaModule]
-usingAnImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
+usingAnImportInField :: [JavaPackage]
+usingAnImportInField = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -724,13 +724,13 @@ usingAnImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModul
     classACompilationUnit :: CompilationUnit
     classACompilationUnit =
         CompilationUnit
-            [ ImportDeclaration "ModuleB" "ClassB" ]
+            [ ImportDeclaration "PackageB" "ClassB" ]
             (ClassDeclaration "ClassA" [FieldDeclaration (ObjectType "ClassB") "x" Nothing] False (Just DefaultConstructor))
 
 
 {-
 
-package ModuleA;
+package PackageA;
 
 public class ClassA {
     public int x;
@@ -753,8 +753,8 @@ public class ClassA {
 
 
 
-monotonicityFalsePositivite :: [JavaModule]
-monotonicityFalsePositivite = [JavaModule "ModuleA" [classACompilationUnit]]
+monotonicityFalsePositivite :: [JavaPackage]
+monotonicityFalsePositivite = [JavaPackage "PackageA" [classACompilationUnit]]
   where
     classACompilationUnit :: CompilationUnit
     classACompilationUnit =
@@ -781,8 +781,8 @@ monotonicityFalsePositivite = [JavaModule "ModuleA" [classACompilationUnit]]
           (Just DefaultConstructor)
         )
 
-byPassingLimitationUsingAveriableThenShadowingit :: [JavaModule]
-byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classACompilationUnit]]
+byPassingLimitationUsingAveriableThenShadowingit :: [JavaPackage]
+byPassingLimitationUsingAveriableThenShadowingit = [JavaPackage "PackageA" [classACompilationUnit]]
   where
     classACompilationUnit :: CompilationUnit
     classACompilationUnit =
@@ -815,16 +815,16 @@ byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classA
 {-
 
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
 }
 
 
-package ModuleA;
+package PackageA;
 
-import ModuleB.ClassB;
+import PackageB.ClassB;
 
 public class ClassA {
     public void method(){
@@ -837,8 +837,8 @@ public class ClassA {
 -}
 
 -- Haskell code:
-creatingAnImportedObject :: [JavaModule]
-creatingAnImportedObject = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
+creatingAnImportedObject :: [JavaPackage]
+creatingAnImportedObject = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -849,7 +849,7 @@ creatingAnImportedObject = [JavaModule "ModuleB" [classBCompilationUnit] , JavaM
     classACompilationUnit :: CompilationUnit
     classACompilationUnit =
         CompilationUnit
-            [ ImportDeclaration "ModuleB" "ClassB" ]
+            [ ImportDeclaration "PackageB" "ClassB" ]
             (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "" (Just $ NewE "ClassB" []) ] ] False (Just DefaultConstructor))
 
 
@@ -857,7 +857,7 @@ creatingAnImportedObject = [JavaModule "ModuleB" [classBCompilationUnit] , JavaM
 {-
 
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -882,7 +882,7 @@ public class ClassB {
 
 
 
-package ModuleA;
+package PackageA;
 
 public  class ClassA {
     public boolean x;
@@ -914,11 +914,11 @@ public  class ClassA {
 -}
 
 
-completeTest :: [JavaModule]
-completeTest = [moduleA , moduleB]
+completeTest :: [JavaPackage]
+completeTest = [packageA , packageB]
     where
-        moduleA :: JavaModule
-        moduleA = JavaModule "ModuleA" [classACompilationUnit]
+        packageA :: JavaPackage
+        packageA = JavaPackage "PackageA" [classACompilationUnit]
         classACompilationUnit :: CompilationUnit
         classACompilationUnit =
             CompilationUnit
@@ -947,8 +947,8 @@ completeTest = [moduleA , moduleB]
                 False
                 (Just DefaultConstructor)
                 )
-        moduleB :: JavaModule
-        moduleB = JavaModule "ModuleB" [classBCompilationUnit]
+        packageB :: JavaPackage
+        packageB = JavaPackage "PackageB" [classBCompilationUnit]
         classBCompilationUnit :: CompilationUnit
         classBCompilationUnit =
             CompilationUnit

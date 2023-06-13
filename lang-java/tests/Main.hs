@@ -15,53 +15,53 @@ import ParsedJava
 import Free.Scope (Graph)
 import ParsedJava (simplyClass)
 
-runFullTCTest :: [JavaModule] -> IO ((), Graph Label Decl) 
+runFullTCTest :: [JavaPackage] -> IO ((), Graph Label Decl) 
 runFullTCTest = either assertFailure return . runTC
 
-runFullTCTFail :: [JavaModule] -> IO String
+runFullTCTFail :: [JavaPackage] -> IO String
 runFullTCTFail e = either return (const $ assertFailure "Expected exception, got none") $ runTC e
 
 
 testSimpleFull :: IO ()
 testSimpleFull = do
-  t <- runFullTCTest [javaModule, javaModule2]
+  t <- runFullTCTest [javaPackage, javaPackage2]
   return (fst t)
   where
-    javaModule = JavaModule "MyModule" 
+    javaPackage = JavaPackage "MyPackage" 
       [CompilationUnit 
-        [ImportDeclaration "MyModule2" "MyClass2"] 
+        [ImportDeclaration "MyPackage2" "MyClass2"] 
         $ ClassDeclaration "MyClass" 
           [FieldDeclaration IntType "myField" Nothing, MethodDeclaration Nothing "myMethod" [] []] 
           False Nothing]
-    javaModule2 = JavaModule "MyModule2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
+    javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
 
 
 testSimpleFullWithMethodBody :: IO ()
 testSimpleFullWithMethodBody = do
-  t <- runFullTCTest [javaModule, javaModule2]
+  t <- runFullTCTest [javaPackage, javaPackage2]
   return (fst t)
   where
-    javaModule = JavaModule "MyModule" 
+    javaPackage = JavaPackage "MyPackage" 
       [CompilationUnit 
         [] 
         $ ClassDeclaration "MyClass" 
           [FieldDeclaration IntType "myField" $ Just $ LiteralE $ IntLiteral 69, MethodDeclaration (Just IntType) "myMethod" [] [ReturnS $ Just $ VariableIdE "myField"]] 
           False Nothing]
-    javaModule2 = JavaModule "MyModule2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
+    javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
 
 
 testUsingImport :: IO ()
 testUsingImport = do
-  t <- runFullTCTest [javaModule, javaModule2]
+  t <- runFullTCTest [javaPackage, javaPackage2]
   return (fst t)
   where
-    javaModule = JavaModule "MyModule" 
+    javaPackage = JavaPackage "MyPackage" 
       [CompilationUnit 
-        [ImportDeclaration "MyModule2" "MyClass2"] 
+        [ImportDeclaration "MyPackage2" "MyClass2"] 
         $ ClassDeclaration "MyClass" 
           [FieldDeclaration IntType "myField" Nothing, MethodDeclaration (Just IntType) "myMethod" [] [ReturnS $ Just $ VariableIdE "myField"]]
           False Nothing]
-    javaModule2 = JavaModule "MyModule2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
+    javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
 
 
 simplyClassTest :: IO ()
