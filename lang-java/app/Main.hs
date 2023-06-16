@@ -6,8 +6,8 @@ import Syntax
 
 {-
 
-/MyModule/MyClass.java
-import MyModule2.MyClass2;
+/MyPackage/MyClass.java
+import MyPackage2.MyClass2;
 class MyClass {
   int myField;
   void myMethod(){
@@ -16,7 +16,7 @@ class MyClass {
 }
 
 
-/MyModule2/MyClass2.java
+/MyPackage2/MyClass2.java
 
 class MyClass2 {
   int myField2;
@@ -28,22 +28,22 @@ class MyClass2 {
 
 -}
 
-javaModule :: JavaModule
-javaModule = JavaModule "MyModule" 
+javaPackage :: JavaPackage
+javaPackage = JavaPackage "MyPackage" 
   [CompilationUnit 
-    [ImportDeclaration "MyModule2" "MyClass2"] 
+    [ImportDeclaration "MyPackage2" "MyClass2"] 
     $ ClassDeclaration "MyClass" 
       [FieldDeclaration IntType "myField" Nothing, MethodDeclaration Nothing "myMethod" [] []] 
       False Nothing]
 
--- Create a module
-javaModule2 :: JavaModule
-javaModule2 = JavaModule "MyModule2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
+-- Create a package
+javaPackage2 :: JavaPackage
+javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
 
 classACompilationUnit :: CompilationUnit
 classACompilationUnit =
   CompilationUnit
-    [ ImportDeclaration "ModuleB" "ClassB" ]
+    [ ImportDeclaration "PackageB" "ClassB" ]
     (ClassDeclaration
       "ClassA"
       [ FieldDeclaration IntType "x" Nothing
@@ -87,8 +87,8 @@ classBCompilationUnit =
       (Just (Constructor [] []))
     )
 
-testingThisNameShodowing :: [JavaModule]
-testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = [compilationUnit, myClassCompilationUnit] }]
+testingThisNameShodowing :: [JavaPackage]
+testingThisNameShodowing = [JavaPackage {packageName = "PackageA", packageMembers = [compilationUnit, myClassCompilationUnit] }]
     where
         classAField :: Member
         classAField = FieldDeclaration IntType "x" Nothing
@@ -110,10 +110,10 @@ testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = 
         compilationUnit :: CompilationUnit
         compilationUnit = CompilationUnit [] classADeclaration
 
-        javaModule :: JavaModule
-        javaModule = JavaModule {
-        moduleName = "ModuleA",
-        moduleMembers = [compilationUnit]
+        javaPackage :: JavaPackage
+        javaPackage = JavaPackage {
+        packageName = "PackageA",
+        packageMembers = [compilationUnit]
         }
 
 
@@ -141,15 +141,15 @@ testingThisNameShodowing = [JavaModule {moduleName = "ModuleA", moduleMembers = 
         myClassCompilationUnit :: CompilationUnit
         myClassCompilationUnit = CompilationUnit [] myClassDeclaration
 
-        javaModuleWithMyClass :: JavaModule
-        javaModuleWithMyClass = JavaModule {
-            moduleName = "ModuleA",
-            moduleMembers = [compilationUnit, myClassCompilationUnit]
+        javaPackageWithMyClass :: JavaPackage
+        javaPackageWithMyClass = JavaPackage {
+            packageName = "PackageA",
+            packageMembers = [compilationUnit, myClassCompilationUnit]
             }
 
 
 {-
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -258,8 +258,8 @@ public class ClassB {
 }
 -}
 
-usingControlFlow :: [JavaModule]
-usingControlFlow = [JavaModule "ModuleB" [classBCompilationUnit]]
+usingControlFlow :: [JavaPackage]
+usingControlFlow = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -345,7 +345,7 @@ usingControlFlow = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -370,8 +370,8 @@ public class ClassB {
 }
 -}
 
-usingControlFlow2 :: [JavaModule]
-usingControlFlow2 = [JavaModule "ModuleB" [classBCompilationUnit]]
+usingControlFlow2 :: [JavaPackage]
+usingControlFlow2 = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -414,7 +414,7 @@ usingControlFlow2 = [JavaModule "ModuleB" [classBCompilationUnit]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -435,8 +435,8 @@ public class ClassB {
 
 -}
 
-breakStatemtns :: [JavaModule]
-breakStatemtns = [JavaModule "ModuleB" [CompilationUnit [] classB]]
+breakStatemtns :: [JavaPackage]
+breakStatemtns = [JavaPackage "PackageB" [CompilationUnit [] classB]]
     where
         classB :: ClassDeclaration
         classB =
@@ -457,7 +457,7 @@ breakStatemtns = [JavaModule "ModuleB" [CompilationUnit [] classB]]
 
 {-
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
@@ -465,7 +465,7 @@ public class ClassB {
 
     public ClassB(){
         while (x){
-            boolean y = x;
+            boolean y; // if I use x in the loop scope, I won't be able to declare y, but if I declare y first, this will allow variables above where y actually was declated to be able to use y
         }
     }
 
@@ -474,8 +474,8 @@ public class ClassB {
 
 -}
 
-nextedBlockPath :: [JavaModule]
-nextedBlockPath = [JavaModule "ModuleB" [CompilationUnit [] classB]]
+nextedBlockPath :: [JavaPackage]
+nextedBlockPath = [JavaPackage "PackageB" [CompilationUnit [] classB]]
     where
         classB :: ClassDeclaration
         classB =
@@ -486,14 +486,14 @@ nextedBlockPath = [JavaModule "ModuleB" [CompilationUnit [] classB]]
                 , isStatic = False
                 , constructor = Just (Constructor [] [ WhileS (VariableIdE "x")
                                 [ 
-                                    VariableDeclarationS BooleanType "y" (Just (VariableIdE "x"))
+                                    VariableDeclarationS BooleanType "y" Nothing
                                 ]
                             ]  ) 
                 }
 
 
-assignment :: [JavaModule]
-assignment = [JavaModule "ModuleB" [CompilationUnit [] classB]]
+assignment :: [JavaPackage]
+assignment = [JavaPackage "PackageB" [CompilationUnit [] classB]]
     where
         classB :: ClassDeclaration
         classB =
@@ -515,16 +515,16 @@ assignment = [JavaModule "ModuleB" [CompilationUnit [] classB]]
 {-
 
 
-package ModuleB;
+package PackageB;
 
 public class ClassB {
 
 }
 
 
-package ModuleA;
+package PackageA;
 
-import ModuleB.ClassB;
+import PackageB.ClassB;
 
 public class ClassA {
     public ClassB x;
@@ -535,8 +535,8 @@ public class ClassA {
 -}
 
 -- Haskell code:
-usingAnImportInField :: [JavaModule]
-usingAnImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModule "ModuleA" [classACompilationUnit]]
+usingAnImportInField :: [JavaPackage]
+usingAnImportInField = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
   where
     classBCompilationUnit :: CompilationUnit
     classBCompilationUnit =
@@ -547,20 +547,20 @@ usingAnImportInField = [JavaModule "ModuleB" [classBCompilationUnit] , JavaModul
     classACompilationUnit :: CompilationUnit
     classACompilationUnit =
         CompilationUnit
-            [ ImportDeclaration "ModuleB" "ClassB" ]
+            [ ImportDeclaration "PackageB" "ClassB" ]
             (ClassDeclaration "ClassA" [FieldDeclaration (ObjectType "ClassB") "x" Nothing] False (Just DefaultConstructor))
 
 
 
 {-
 
-package ModuleA;
+package PackageA;
 
 public class ClassA {
     public int x;
 
     public void method(){
-        this.helper(x);
+        helper(x);
         int x = 69;
         helper(x);
     }
@@ -577,8 +577,8 @@ public class ClassA {
 
 
 
-monotonicityFalsePositivite :: [JavaModule]
-monotonicityFalsePositivite = [JavaModule "ModuleA" [classACompilationUnit]]
+monotonicityFalsePositivite :: [JavaPackage]
+monotonicityFalsePositivite = [JavaPackage "PackageA" [classACompilationUnit]]
   where
     classACompilationUnit :: CompilationUnit
     classACompilationUnit =
@@ -605,34 +605,151 @@ monotonicityFalsePositivite = [JavaModule "ModuleA" [classACompilationUnit]]
           (Just DefaultConstructor)
         )
 
-byPassingLimitationUsingAveriableThenShadowingit :: [JavaModule]
-byPassingLimitationUsingAveriableThenShadowingit = [JavaModule "ModuleA" [classACompilationUnit]]
+
+
+
+-- Haskell code:
+creatingAnImportedObject :: [JavaPackage]
+creatingAnImportedObject = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
   where
-    classACompilationUnit :: CompilationUnit
-    classACompilationUnit =
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
       CompilationUnit
         []
-        (ClassDeclaration
-          "ClassA"
-          [ FieldDeclaration IntType "x" Nothing
-          , MethodDeclaration
-              Nothing
-              "method"
-              []
-              [ ExpressionS $ MethodInvocationE ThisE "helper" [FieldAccessE ThisE $ "x"] -- by always using this, then the method scope will not be queried for x
-              , VariableDeclarationS IntType "x" (Just (LiteralE (IntLiteral 69))) -- this way then x is declared here it will not cause issues, and it will allow for phasing if needed
-            --   , ExpressionS $ MethodCallE "helper" [VariableIdE "x"]
-              ]
-          , MethodDeclaration
-              Nothing
-              "helper"
-              [Parameter IntType "x"]
-              []
-          ]
-          False
-          (Just DefaultConstructor)
-        )
+        (ClassDeclaration "ClassB" [] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "PackageB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" []) ] ] False (Just DefaultConstructor))
+
+
+
+completeTest :: [JavaPackage]
+completeTest = [packageA , packageB]
+    where
+        packageA :: JavaPackage
+        packageA = JavaPackage "PackageA" [classACompilationUnit]
+        classACompilationUnit :: CompilationUnit
+        classACompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassA"
+                [ FieldDeclaration BooleanType "x" Nothing
+                , MethodDeclaration
+                    (Just IntType)
+                    "method"
+                    []
+                    [ VariableDeclarationS IntType "count" (Just (LiteralE (IntLiteral 0)))
+                    , WhileS (BinaryOpE (VariableIdE "count") ComparasionOp (LiteralE (IntLiteral 69)))
+                        [ IfS (MethodCallE "helper" [])
+                            [ ReturnS (Just (VariableIdE "count")) ]
+                            $ Just [ ExpressionS (MethodCallE "helper" []) ]
+                        ]
+                    , ReturnS (Just (VariableIdE "count"))
+                    ]
+                , MethodDeclaration
+                    (Just BooleanType)
+                    "helper"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]
+                ]
+                False
+                (Just DefaultConstructor)
+                )
+        packageB :: JavaPackage
+        packageB = JavaPackage "PackageB" [classBCompilationUnit]
+        classBCompilationUnit :: CompilationUnit
+        classBCompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassB"
+                [ FieldDeclaration StringType "name" Nothing
+                , FieldDeclaration IntType "age" Nothing              
+                , MethodDeclaration
+                    (Just StringType)
+                    "tellMe"
+                    [ Parameter IntType "age" ]
+                    [ AssignmentS (FieldAccessE ThisE "age") (VariableIdE "age")
+                    , VariableDeclarationS StringType "res" (Just (BinaryOpE (LiteralE (StringLiteral "na name is")) StringConcatOp (FieldAccessE ThisE "name")))
+                    , ReturnS (Just (VariableIdE "res"))
+                    ]
+                ]
+                False
+                (Just (Constructor [ Parameter IntType "name"
+                                        , Parameter StringType "age"
+                                        ]
+                                        [ AssignmentS (FieldAccessE ThisE "name") (VariableIdE "age")
+                                        , AssignmentS (FieldAccessE ThisE "age") (VariableIdE "name")
+                                        ]))
+                )
+
+
+importedClassMethodCall :: [JavaPackage]
+importedClassMethodCall = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [FieldDeclaration BooleanType "x" Nothing ,MethodDeclaration
+                    (Just BooleanType)
+                    "helper"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "PackageB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "helper" []) ]] False (Just DefaultConstructor))
+
+
+
+
+
+
+
+
+
+
+
+
+
+doubleImportedClassMethodCall :: [JavaPackage]
+doubleImportedClassMethodCall = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit] , JavaPackage "PackageC" [classCCompilationUnit]]
+  where
+
+    classCCompilationUnit :: CompilationUnit
+    classCCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassC" [FieldDeclaration BooleanType "x" Nothing ,MethodDeclaration
+                    (Just BooleanType)
+                    "helperC"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]] False (Just DefaultConstructor))
+
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        [ImportDeclaration "PackageC" "ClassC"]
+        (ClassDeclaration "ClassB" [MethodDeclaration ( Just BooleanType) "method" [] [ VariableDeclarationS (ObjectType "ClassC") "b" (Just $ NewE "ClassC" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "helperC" []) , ReturnS $ Just $ VariableIdE "res" ]] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "PackageB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "method" []) ]] False (Just DefaultConstructor))
+
+
 
 main :: IO ()
 main = do
-    print $ runTC byPassingLimitationUsingAveriableThenShadowingit
+    print $ runTC doubleImportedClassMethodCall

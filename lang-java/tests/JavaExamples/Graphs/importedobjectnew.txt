@@ -4,6 +4,7 @@
     4 -P-> 1
     5 -I-> 3
     5 -P-> 4
+    6 -P-> 5
   sinks:
     1 |-M-> PackageDecl "PackageA" 4
     1 |-M-> PackageDecl "PackageB" 2
@@ -11,6 +12,7 @@
     3 |-D-> ConstructorDecl "ClassB" []
     3 |-T-> ScopeType "ClassB"
     4 |-Cl-> ClassDecl "ClassA" 5
-    5 |-D-> VarDecl "x" (ObjectType "ClassB")
+    5 |-D-> MethodDecl "method" Nothing []
     5 |-D-> ConstructorDecl "ClassA" []
     5 |-T-> ScopeType "ClassA"
+    6 |-D-> VarDecl "b" (ObjectType "ClassB")
