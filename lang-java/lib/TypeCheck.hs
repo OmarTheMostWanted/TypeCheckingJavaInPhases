@@ -20,7 +20,7 @@ data Label
   | M -- Package Declaration
   | Cl -- Class Declaration to resolve this keyword
   | T -- Scope Type Declaration 
-  | F
+  -- | F
   deriving (Show, Eq)
 
 
@@ -44,7 +44,8 @@ data Decl
 
 -- Regular expression P*D must be chanced to allow for a single import edge I 
 re :: RE Label
-re = Pipe (Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))) (Dot (Star $ Atom P)  $ Atom F)
+-- re = Pipe (Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))) (Dot (Star $ Atom P)  $ Atom F)
+re = Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))
 
 -- Regular expression P*M
 packageRe :: RE Label
@@ -108,12 +109,12 @@ causeMonotonicity = do
 causeMonotonicity2 :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Free f ()
 causeMonotonicity2 = do
   programScope <- new
-  sink programScope F $ VarDecl "y" IntType
+  sink programScope D $ VarDecl "y" IntType
   
   scope <- new
   edge scope P programScope
 
-  query programScope (Dot (Star $ Atom P)  $ Atom F)  pShortest (matchDecl "x")
+  query programScope (Dot (Star $ Atom P)  $ Atom D)  pShortest (matchDecl "x")
 
   -- query scope re pShortest (matchDecl "z")
   sink scope D $ VarDecl "o" IntType
@@ -186,17 +187,24 @@ tcClassMemberDeclarations (CompilationUnit imports (ClassDeclaration className m
 tcImports :: (Functor f, Error String < f, Scope Sc Label Decl < f) => ImportDeclaration -> Sc -> Free f ()
 tcImports (ImportDeclaration m c) classScope = do
   packageToSearch <- query classScope (Dot (Star $ Atom P) (Atom M)) pShortest (matchDecl m)
-  case packageToSearch of
-    [] -> err $ "Imported package " ++ m ++ " not found"
-    [PackageDecl n packageScope] -> do
-      classToImport <- query packageScope (Atom Cl) pShortest (matchDecl c)
-      case classToImport of
-        [] -> err $ "Imported Class " ++ c ++ " not found in package " ++ n
-        [ClassDecl c importedClassScope] -> 
-          trace ("Imported class " ++ c ++ " from package " ++ m ++ " into scope " ++ show classScope)
-            edge classScope I importedClassScope
-        _ -> err $ "Ambiguity imported class name " ++ c
-    _ -> err $ "Ambiguity in imported package name" ++ m
+  className <- query classScope (Atom T) pShortest $ const True
+
+  case className of
+    [] -> err $ "Scope type was not found while importing " ++ m ++ "." ++ c ++ " to scope " ++ show classScope
+    [ScopeType t] ->
+      if t == c then err $ "Class " ++ t ++ " is trying to import itself" else
+        case packageToSearch of
+          [] -> err $ "Imported package " ++ m ++ " not found"
+          [PackageDecl n packageScope] -> do
+            classToImport <- query packageScope (Atom Cl) pShortest (matchDecl c)
+            case classToImport of
+              [] -> err $ "Imported Class " ++ c ++ " not found in package " ++ n
+              [ClassDecl c importedClassScope] -> 
+                trace ("Imported class " ++ c ++ " from package " ++ m ++ " into scope " ++ show classScope)
+                  edge classScope I importedClassScope
+              _ -> err $ "Ambiguity imported class name " ++ c
+          _ -> err $ "Ambiguity in imported package name" ++ m
+    _ -> err $ "More than one scope type was found in scope " ++ show classScope
 
 -- Pase 2: Step 2 (Validate Constructor Declaration)
 addClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Maybe Constructor -> String -> Sc -> Free f ()
@@ -218,7 +226,7 @@ addDeclsForClassMemebers m classScope =
       trace ("Validating Field type " ++ show ft ++ " in scope " ++ show classScope)
         checkIfTypeIsVisibleInScope ft classScope
       trace ("Added Field " ++ show (VarDecl name ft) ++ " to scope " ++ show classScope)
-        sink classScope F $ VarDecl name ft
+        sink classScope D $ VarDecl name ft
 
     (MethodDeclaration Nothing name params _) -> do
       trace ("Validating Method parameter types " ++ show [ t | Parameter t _ <-  params] ++ " in scope " ++ show classScope)
@@ -292,7 +300,7 @@ tcClassMemebers m classScope =
       methodScope <- new
       edge methodScope P classScope
       mapM_ (`addParamToMethodScope` methodScope) params
-      actual <- trace ("Type checking method the body of method " ++ show n ++ " with scope " ++ show methodScope) tcBlock rt False body methodScope
+      actual <- trace ("Type checking body of method " ++ show n ++ " with scope " ++ show methodScope) tcBlock rt False body methodScope
       if rt == removeVoid actual 
         then return () 
         else err $ "Method declared return type and actual return type don't match expected: " ++ show rt ++ " actual: " ++ show actual
@@ -550,10 +558,10 @@ tcExpr ThisE scope = do
 
 tcExpr (LiteralE l) _ = tcLiteral l
 tcExpr (VariableIdE varName) scope = do
-  variableDecl <- trace ("Searching for " ++ varName ++ " in scope " ++ show scope) query scope re pShortest (matchDecl varName) -- TODO also include static class Names or 
+  variableDecl <- trace ("Searching for " ++ varName ++ " in scope " ++ show scope) query scope (Dot (Star $ Atom P)  $ Atom D) pShortest (matchDecl varName) --BUG: removed imported variable names TODO also include static class Names
   case variableDecl of
     [VarDecl _ varType] -> return varType
-    [] -> err $ "Variable " ++ varName ++ " Not Found: " ++ show variableDecl -- if nothing is found try this first
+    [] -> err $ "Variable " ++ varName ++ " not found" -- if nothing is found try this first
     _ -> err $ "More than one Decl of variable " ++ varName ++ " found"
 
 tcExpr (MethodCallE methodName args) scope = do
@@ -597,7 +605,7 @@ tcExpr (FieldAccessE expr fieldName) scope = do
         [] -> err $ "Class " ++ objectName ++ " not found in from scope " ++ show scope ++ " while type checking FieldAccessE"
         [ClassDecl name classScope] -> do
           fieldDecl <- trace ("Querying scope " ++ show classScope ++ " for varaible " ++ fieldName) 
-            query classScope (Dot (Star $ Atom P)  $ Atom F)  pShortest (matchDecl fieldName)
+            query classScope (Dot (Star $ Atom P)  $ Atom D)  pShortest (matchDecl fieldName)
           case fieldDecl of
             [] -> err $ "Field " ++ fieldName ++ " not found in class " ++ name
             [VarDecl _ t] -> return t
@@ -611,7 +619,7 @@ tcExpr (MethodInvocationE expr methodName args) scope = do
   object <- tcExpr expr scope
   case object of
     (ObjectType objectName) -> do
-      classDecl <- query scope classRe pShortest (matchDecl objectName)
+      classDecl <- query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchDecl objectName)
       case classDecl of
         [] -> err $ "Class " ++ objectName ++ " not found"
         [ClassDecl name classScope] -> do

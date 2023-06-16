@@ -974,3 +974,696 @@ completeTest = [packageA , packageB]
                                         , AssignmentS (FieldAccessE ThisE "age") (VariableIdE "name")
                                         ]))
                 )
+
+
+
+{-
+
+
+package PackageB;
+
+public class ClassB {
+    boolean x;
+    public boolean helper(){
+        return x;
+    }
+}
+
+
+package PackageA;
+
+import PackageB.ClassB;
+
+public class ClassA {
+    public void method(){
+        ClassB b = new ClassB();
+        boolean res = b.helper();
+    } 
+}
+
+
+
+-}
+
+-- Haskell code:
+importedClassMethodCall :: [JavaPackage]
+importedClassMethodCall = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [FieldDeclaration BooleanType "x" Nothing ,MethodDeclaration
+                    (Just BooleanType)
+                    "helper"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "PackageB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "helper" []) ]] False (Just DefaultConstructor))
+
+
+
+{-
+
+package PackageC;
+
+public class ClassC {
+    boolean x;
+    public boolean helperC(){
+        return x;
+    }
+}
+
+
+package PackageB;
+
+import PackageC.ClassC;
+
+public class ClassB {
+    public boolean method(){
+        ClassC b = new ClassC();
+        boolean res = b.helperC();
+        return res;
+    } 
+}
+
+
+package PackageA;
+
+import PackageB.ClassB;
+
+public class ClassA {
+    public void method(){
+        ClassB b = new ClassB();
+        boolean res = b.method();
+    } 
+}
+
+
+
+-}
+
+-- Haskell code:
+doubleImportedClassMethodCall :: [JavaPackage]
+doubleImportedClassMethodCall = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit] , JavaPackage "PackageC" [classCCompilationUnit]]
+  where
+
+    classCCompilationUnit :: CompilationUnit
+    classCCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassC" [FieldDeclaration BooleanType "x" Nothing ,MethodDeclaration
+                    (Just BooleanType)
+                    "helperC"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]] False (Just DefaultConstructor))
+
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        [ImportDeclaration "PackageC" "ClassC"]
+        (ClassDeclaration "ClassB" [MethodDeclaration ( Just BooleanType) "method" [] [ VariableDeclarationS (ObjectType "ClassC") "b" (Just $ NewE "ClassC" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "helperC" []) , ReturnS $ Just $ VariableIdE "res" ]] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "PackageB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "method" []) ]] False (Just DefaultConstructor))
+
+
+------------------------------------------------------------------------ 
+-- Testing Detecting Fails
+
+
+{-
+
+
+package PackageB;
+
+public class ClassB {
+
+}
+
+
+package PackageA;
+
+//import PackageB.ClassB;
+
+public class ClassA {
+    public ClassB x;
+}
+
+
+
+-}
+
+-- Haskell code:
+failTestNoImport :: [JavaPackage]
+failTestNoImport = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            []
+            (ClassDeclaration "ClassA" [FieldDeclaration (ObjectType "ClassB") "x" Nothing] False (Just DefaultConstructor))
+
+
+
+{-
+
+
+package PackageB;
+
+public class ClassB {
+
+    String name;
+    int age;
+
+    public ClassB(int name, String age){
+        this.name = age;
+        this.age = name;
+    }
+
+    public String tellMe(int age){
+
+        this.age = age;
+
+        String res = "na name is" + this.name;
+
+        return res;
+    }
+
+}
+
+
+
+package PackageA;
+
+public  class ClassA {
+    public boolean x;
+
+    public int method(){
+
+        int count = 0;
+
+        while (count < 69){
+
+            if (helper()){
+                return count;
+            } else {
+                helper();
+                return x;
+            }
+
+        }
+
+        return count;
+    }
+
+
+    public boolean helper(){
+        return x;
+    }
+
+}
+
+-}
+
+
+wrongReturnTypeInNestedBlock :: [JavaPackage]
+wrongReturnTypeInNestedBlock = [packageA , packageB]
+    where
+        packageA :: JavaPackage
+        packageA = JavaPackage "PackageA" [classACompilationUnit]
+        classACompilationUnit :: CompilationUnit
+        classACompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassA"
+                [ FieldDeclaration BooleanType "x" Nothing
+                , MethodDeclaration
+                    (Just IntType)
+                    "method"
+                    []
+                    [ VariableDeclarationS IntType "count" (Just (LiteralE (IntLiteral 0)))
+                    , WhileS (BinaryOpE (VariableIdE "count") ComparasionOp (LiteralE (IntLiteral 69)))
+                        [ IfS (MethodCallE "helper" [])
+                            [ ReturnS (Just (VariableIdE "count")) ]
+                            $ Just [ ExpressionS (MethodCallE "helper" []) , ReturnS (Just (VariableIdE "x"))]
+                        ]
+                    , ReturnS (Just (VariableIdE "count"))
+                    ]
+                , MethodDeclaration
+                    (Just BooleanType)
+                    "helper"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]
+                ]
+                False
+                (Just DefaultConstructor)
+                )
+        packageB :: JavaPackage
+        packageB = JavaPackage "PackageB" [classBCompilationUnit]
+        classBCompilationUnit :: CompilationUnit
+        classBCompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassB"
+                [ FieldDeclaration StringType "name" Nothing
+                , FieldDeclaration IntType "age" Nothing              
+                , MethodDeclaration
+                    (Just StringType)
+                    "tellMe"
+                    [ Parameter IntType "age" ]
+                    [ AssignmentS (FieldAccessE ThisE "age") (VariableIdE "age")
+                    , VariableDeclarationS StringType "res" (Just (BinaryOpE (LiteralE (StringLiteral "na name is")) StringConcatOp (FieldAccessE ThisE "name")))
+                    , ReturnS (Just (VariableIdE "res"))
+                    ]
+                ]
+                False
+                (Just (Constructor [ Parameter IntType "name"
+                                        , Parameter StringType "age"
+                                        ]
+                                        [ AssignmentS (FieldAccessE ThisE "name") (VariableIdE "age")
+                                        , AssignmentS (FieldAccessE ThisE "age") (VariableIdE "name")
+                                        ]))
+                )
+
+
+{-
+
+
+package PackageB;
+
+public class ClassB {
+
+    String name;
+    int age;
+
+    public ClassB(int name, String age){
+        this.name = age;
+        this.age = name;
+    }
+
+    public String tellMe(int age){
+
+        this.age = age;
+
+        String res = "na name is" + this.name;
+
+        return res;
+    }
+
+}
+
+
+
+package PackageA;
+
+public  class ClassA {
+    public boolean x;
+
+    public int method(){
+
+        int count = 0;
+
+        while (count < 69){
+
+            if (helper()){
+                return false;
+            } else {
+                helper();
+                return x;
+            }
+
+        }
+
+        return count;
+    }
+
+
+    public boolean helper(){
+        return x;
+    }
+
+}
+
+-}
+
+
+wrongReturnTypeBlock :: [JavaPackage]
+wrongReturnTypeBlock = [packageA , packageB]
+    where
+        packageA :: JavaPackage
+        packageA = JavaPackage "PackageA" [classACompilationUnit]
+        classACompilationUnit :: CompilationUnit
+        classACompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassA"
+                [ FieldDeclaration BooleanType "x" Nothing
+                , MethodDeclaration
+                    (Just IntType)
+                    "method"
+                    []
+                    [ VariableDeclarationS IntType "count" (Just (LiteralE (IntLiteral 0)))
+                    , WhileS (BinaryOpE (VariableIdE "count") ComparasionOp (LiteralE (IntLiteral 69)))
+                        [ IfS (MethodCallE "helper" [])
+                            [ ReturnS (Just (LiteralE $ BooleanLiteral False)) ]
+                            $ Just [ ExpressionS (MethodCallE "helper" []) , ReturnS (Just (VariableIdE "x"))]
+                        ]
+                    , ReturnS (Just (VariableIdE "count"))
+                    ]
+                , MethodDeclaration
+                    (Just BooleanType)
+                    "helper"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]
+                ]
+                False
+                (Just DefaultConstructor)
+                )
+        packageB :: JavaPackage
+        packageB = JavaPackage "PackageB" [classBCompilationUnit]
+        classBCompilationUnit :: CompilationUnit
+        classBCompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassB"
+                [ FieldDeclaration StringType "name" Nothing
+                , FieldDeclaration IntType "age" Nothing              
+                , MethodDeclaration
+                    (Just StringType)
+                    "tellMe"
+                    [ Parameter IntType "age" ]
+                    [ AssignmentS (FieldAccessE ThisE "age") (VariableIdE "age")
+                    , VariableDeclarationS StringType "res" (Just (BinaryOpE (LiteralE (StringLiteral "na name is")) StringConcatOp (FieldAccessE ThisE "name")))
+                    , ReturnS (Just (VariableIdE "res"))
+                    ]
+                ]
+                False
+                (Just (Constructor [ Parameter IntType "name"
+                                        , Parameter StringType "age"
+                                        ]
+                                        [ AssignmentS (FieldAccessE ThisE "name") (VariableIdE "age")
+                                        , AssignmentS (FieldAccessE ThisE "age") (VariableIdE "name")
+                                        ]))
+                )                
+
+
+
+
+
+{-
+
+
+package PackageB;
+
+public class ClassB {
+
+    String name;
+    int age;
+
+    public ClassB(int name, String age){
+        this.name = age;
+        this.age = name;
+    }
+
+    public String tellMe(int age){
+
+        this.age = age;
+
+        String res = "na name is" + this.name;
+
+        return res;
+    }
+
+}
+
+
+
+package PackageA;
+
+public  class ClassA {
+    public boolean x;
+
+    public int method(){
+
+        int count = 0;
+
+        while (count < 69){
+
+            if (helper()){
+                return false;
+            } else {
+                helper();
+            }
+
+        }
+
+    }
+
+
+    public boolean helper(){
+        return x;
+    }
+
+}
+
+-}
+
+
+mssingReturnInElseBlock :: [JavaPackage]
+mssingReturnInElseBlock = [packageA , packageB]
+    where
+        packageA :: JavaPackage
+        packageA = JavaPackage "PackageA" [classACompilationUnit]
+        classACompilationUnit :: CompilationUnit
+        classACompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassA"
+                [ FieldDeclaration BooleanType "x" Nothing
+                , MethodDeclaration
+                    (Just IntType)
+                    "method"
+                    []
+                    [ VariableDeclarationS IntType "count" (Just (LiteralE (IntLiteral 0)))
+                    , WhileS (BinaryOpE (VariableIdE "count") ComparasionOp (LiteralE (IntLiteral 69)))
+                        [ IfS (MethodCallE "helper" [])
+                            [ ReturnS (Just (LiteralE $ BooleanLiteral False)) ]
+                            $ Just [ ExpressionS (MethodCallE "helper" [])]
+                        ]
+                    ]
+                , MethodDeclaration
+                    (Just BooleanType)
+                    "helper"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]
+                ]
+                False
+                (Just DefaultConstructor)
+                )
+        packageB :: JavaPackage
+        packageB = JavaPackage "PackageB" [classBCompilationUnit]
+        classBCompilationUnit :: CompilationUnit
+        classBCompilationUnit =
+            CompilationUnit
+                []
+                (ClassDeclaration
+                "ClassB"
+                [ FieldDeclaration StringType "name" Nothing
+                , FieldDeclaration IntType "age" Nothing              
+                , MethodDeclaration
+                    (Just StringType)
+                    "tellMe"
+                    [ Parameter IntType "age" ]
+                    [ AssignmentS (FieldAccessE ThisE "age") (VariableIdE "age")
+                    , VariableDeclarationS StringType "res" (Just (BinaryOpE (LiteralE (StringLiteral "na name is")) StringConcatOp (FieldAccessE ThisE "name")))
+                    , ReturnS (Just (VariableIdE "res"))
+                    ]
+                ]
+                False
+                (Just (Constructor [ Parameter IntType "name"
+                                        , Parameter StringType "age"
+                                        ]
+                                        [ AssignmentS (FieldAccessE ThisE "name") (VariableIdE "age")
+                                        , AssignmentS (FieldAccessE ThisE "age") (VariableIdE "name")
+                                        ]))
+                )                                
+
+
+{-
+
+
+package PackageB;
+
+public class ClassB {
+
+}
+
+
+package PackageA;
+
+import PackageB.ClassB;
+
+public class ClassA {
+    public void method(){
+        int b = new ClassB();
+    } 
+}
+
+
+
+-}
+
+typeMissMatchWithDeclaration :: [JavaPackage]
+typeMissMatchWithDeclaration = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "PackageB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS IntType "" (Just $ NewE "ClassB" []) ] ] False (Just DefaultConstructor))
+
+
+{-
+
+
+package PackageB;
+
+import PackageB.ClassB;
+
+public class ClassB {
+
+}
+
+-}
+
+importingSelf :: [JavaPackage]
+importingSelf = [JavaPackage "PackageB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        [ImportDeclaration "PackageB" "ClassB"]
+        (ClassDeclaration "ClassB" [] False (Just DefaultConstructor))
+
+
+
+
+
+
+{-
+
+package PackageC;
+
+public class ClassC {
+    boolean x;
+    public boolean helperC(){
+        return x;
+    }
+}
+
+
+package PackageB;
+
+import PackageC.ClassC;
+
+public class ClassB {
+    public boolean method(){
+        ClassC b = new ClassC();
+        boolean res = b.helperC();
+        return x;
+    } 
+}
+
+
+package PackageA;
+
+import PackageB.ClassB;
+
+public class ClassA {
+    public void method(){
+        ClassB b = new ClassB();
+        boolean res = b.method();
+    } 
+}
+
+
+
+-}
+
+-- Haskell code:
+cantUseImportedFieldWithoutQualification :: [JavaPackage]
+cantUseImportedFieldWithoutQualification = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit] , JavaPackage "PackageC" [classCCompilationUnit]]
+  where
+
+    classCCompilationUnit :: CompilationUnit
+    classCCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassC" [FieldDeclaration BooleanType "x" Nothing ,MethodDeclaration
+                    (Just BooleanType)
+                    "helperC"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]] False (Just DefaultConstructor))
+
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        [ImportDeclaration "PackageC" "ClassC"]
+        (ClassDeclaration "ClassB" [MethodDeclaration ( Just BooleanType) "method" [] [ VariableDeclarationS (ObjectType "ClassC") "b" (Just $ NewE "ClassC" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "helperC" []) , ReturnS $ Just $ VariableIdE "x" ]] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "PackageB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "method" []) ]] False (Just DefaultConstructor))
+
+{-
+ 
+package PackageB;
+
+
+
+public class ClassB {
+    break;
+}
+
+-}
+
+breakOutsideOfLoop :: [JavaPackage]
+breakOutsideOfLoop = [JavaPackage "PackageB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [] False (Just Constructor {constructorParameters=[], constructorBody=[BreakS]}))

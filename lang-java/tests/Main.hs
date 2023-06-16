@@ -6,7 +6,7 @@ import Test.HUnit
       assertFailure,
       runTestTT,
       Counts(failures , errors),
-      Test(TestList) )
+      Test(TestList), Assertion )
 
 import Syntax
 import TypeCheck (runTC, Label, Decl, re)
@@ -38,7 +38,7 @@ testSimpleFull = do
 
 testSimpleFullWithMethodBody :: IO ()
 testSimpleFullWithMethodBody = do
-  t <- runFullTCTest [javaPackage, javaPackage2]
+  t <- runFullTCTest [javaPackage , javaPackage2]
   return (fst t)
   where
     javaPackage = JavaPackage "MyPackage" 
@@ -153,18 +153,78 @@ completeTestTest = do
   return $ fst t
 
 
--- Test :: IO ()
--- Test = do
---   t <- runFullTCTest 
---   return $ fst t
+importedClassMethodCallTest :: IO ()
+importedClassMethodCallTest = do
+  t <- runFullTCTest importedClassMethodCall
+  return $ fst t
 
 
--- Test :: IO ()
--- Test = do
---   t <- runFullTCTest 
---   return $ fst t
+doubleImportedClassMethodCallTest :: IO ()
+doubleImportedClassMethodCallTest = do
+  t <- runFullTCTest doubleImportedClassMethodCall
+  return $ fst t
+
+-----------------------------------------------------------------------------
+
+failTestNoImportTest ::  IO ()
+failTestNoImportTest = do
+  t <- runFullTCTFail failTestNoImport
+  assertEqual "Expected error: " "Type ClassB doesn't exist in scope" t
 
 
+
+wrongIFELSEReturnTypeInNestedBlockExpectedFailTest ::  IO ()
+wrongIFELSEReturnTypeInNestedBlockExpectedFailTest = do
+  t <- runFullTCTFail wrongReturnTypeInNestedBlock
+  assertEqual "Expected error: " "If statment return missmatch if returns Just IntType else returns Just BooleanType" t 
+
+wrongReturnTypeBlockExpectedFailTest ::  IO ()
+wrongReturnTypeBlockExpectedFailTest = do
+  t <- runFullTCTFail wrongReturnTypeBlock
+  assertEqual "Expected error: " "Expected Return IntTypebut got BooleanType" t
+
+mssingReturnInElseBlockExpectedFailTest ::  IO ()
+mssingReturnInElseBlockExpectedFailTest = do
+  t <- runFullTCTFail mssingReturnInElseBlock
+  assertEqual "Expected error: " "Missing return statemnt after while loop" t
+
+typeMissMatchWithDeclarationExpectedFailTest ::  IO ()
+typeMissMatchWithDeclarationExpectedFailTest = do
+  t <- runFullTCTFail typeMissMatchWithDeclaration
+  assertEqual "Expected error: " "Type missmatch expected: IntType but got ObjectType \"ClassB\"" t
+
+
+importingSelfExpectedFailTest ::  IO ()
+importingSelfExpectedFailTest = do
+  t <- runFullTCTFail importingSelf
+  assertEqual "Expected error: " "Class ClassB is trying to import itself" t
+
+
+cantUseImportedFieldWithoutQualificationExpectedFailTest ::  IO ()
+cantUseImportedFieldWithoutQualificationExpectedFailTest = do
+  t <- runFullTCTFail cantUseImportedFieldWithoutQualification
+  assertEqual "Expected error: " "Variable x not found" t
+
+
+breakOutsideOfLoopExpectedFailTest ::  IO ()
+breakOutsideOfLoopExpectedFailTest = do
+  t <- runFullTCTFail breakOutsideOfLoop
+  assertEqual "Expected error: " "Break is not allowed outside of loop" t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " t
 
 
 tests :: Test
@@ -186,7 +246,22 @@ tests = TestList
       "byPassingLimitationUsingAveriableThenShadowingitTest" ~: byPassingLimitationUsingAveriableThenShadowingitTest,
       "creatingAnImportedObjectTest" ~: creatingAnImportedObjectTest,
       "testingThisNameShodowingTest" ~: testingThisNameShodowingTest,
-      "completeTestTest" ~: completeTestTest
+      "completeTestTest" ~: completeTestTest,
+      "importedClassMethodCallTest" ~: importedClassMethodCallTest,
+      "doubleImportedClassMethodCallTest" ~: doubleImportedClassMethodCallTest,
+
+
+      "failTestNoImportTest" ~: failTestNoImportTest,
+      "wrongIFELSEReturnTypeInNestedBlockExpectedFailTest" ~: wrongIFELSEReturnTypeInNestedBlockExpectedFailTest,
+      "wrongReturnTypeBlockExpectedFailTest" ~: wrongReturnTypeBlockExpectedFailTest,
+      "mssingReturnInElseBlockExpectedFailTest" ~: mssingReturnInElseBlockExpectedFailTest,
+      "typeMissMatchWithDeclarationExpectedFailTest" ~: typeMissMatchWithDeclarationExpectedFailTest,
+      "importingSelfExpectedFailTest" ~: importingSelfExpectedFailTest,
+      "cantUseImportedFieldWithoutQualificationExpectedFailTest" ~: cantUseImportedFieldWithoutQualificationExpectedFailTest,
+      "breakOutsideOfLoopExpectedFailTest" ~: breakOutsideOfLoopExpectedFailTest
+      
+
+
     ]
 
 

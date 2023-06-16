@@ -605,30 +605,7 @@ monotonicityFalsePositivite = [JavaPackage "PackageA" [classACompilationUnit]]
           (Just DefaultConstructor)
         )
 
-byPassingLimitationUsingAveriableThenShadowingit :: [JavaPackage]
-byPassingLimitationUsingAveriableThenShadowingit = [JavaPackage "PackageA" [classACompilationUnit]]
-  where
-    classACompilationUnit :: CompilationUnit
-    classACompilationUnit =
-      CompilationUnit
-        []
-        (ClassDeclaration
-          "ClassA"
-          [ FieldDeclaration IntType "x" Nothing
-          , MethodDeclaration
-              Nothing
-              "method"
-              []
-              [ ExpressionS $ MethodInvocationE ThisE "helper" [FieldAccessE ThisE $ "x"] -- by always using this, then the method scope will not be queried for x
-              , VariableDeclarationS IntType "xo" (Just (LiteralE (IntLiteral 69))) -- this way then x is declared here it will not cause issues, and it will allow for phasing if needed
-              , ExpressionS $ MethodCallE "helper" [Varipackage
-              "helper"
-              [Parameter IntType "u"]
-              []
-          ]
-          False
-          (Just DefaultConstructor)
-        )
+
 
 
 -- Haskell code:
@@ -711,8 +688,68 @@ completeTest = [packageA , packageB]
                 )
 
 
+importedClassMethodCall :: [JavaPackage]
+importedClassMethodCall = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassB" [FieldDeclaration BooleanType "x" Nothing ,MethodDeclaration
+                    (Just BooleanType)
+                    "helper"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "PackageB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "helper" []) ]] False (Just DefaultConstructor))
+
+
+
+
+
+
+
+
+
+
+
+
+
+doubleImportedClassMethodCall :: [JavaPackage]
+doubleImportedClassMethodCall = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit] , JavaPackage "PackageC" [classCCompilationUnit]]
+  where
+
+    classCCompilationUnit :: CompilationUnit
+    classCCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration "ClassC" [FieldDeclaration BooleanType "x" Nothing ,MethodDeclaration
+                    (Just BooleanType)
+                    "helperC"
+                    []
+                    [ ReturnS (Just (VariableIdE "x")) ]] False (Just DefaultConstructor))
+
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        [ImportDeclaration "PackageC" "ClassC"]
+        (ClassDeclaration "ClassB" [MethodDeclaration ( Just BooleanType) "method" [] [ VariableDeclarationS (ObjectType "ClassC") "b" (Just $ NewE "ClassC" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "helperC" []) , ReturnS $ Just $ VariableIdE "res" ]] False (Just DefaultConstructor))
+
+    classACompilationUnit :: CompilationUnit
+    classACompilationUnit =
+        CompilationUnit
+            [ ImportDeclaration "PackageB" "ClassB" ]
+            (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" [])  , 
+            VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "method" []) ]] False (Just DefaultConstructor))
+
 
 
 main :: IO ()
 main = do
-    print $ runTC completeTest
+    print $ runTC doubleImportedClassMethodCall
