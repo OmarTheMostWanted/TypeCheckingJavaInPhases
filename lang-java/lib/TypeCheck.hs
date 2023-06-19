@@ -11,7 +11,6 @@ import Syntax
 import Control.Monad
 
 import Debug.Trace
-import Control.Exception (Exception)
 
 
 data Label
@@ -96,7 +95,13 @@ matchMethodDecl :: String -> [JavaType] -> Decl -> Bool
 matchMethodDecl x args (MethodDecl x' _ params) = x == x' && args == [t | (Parameter t _) <- params]
 matchMethodDecl _ _ _ = False
 
+matchPackageDecl :: String -> Decl -> Bool
+matchPackageDecl x (PackageDecl x' _) = x == x'
+matchPackageDecl _ _ = False
 
+matchClassDecl :: String -> Decl -> Bool
+matchClassDecl x (ClassDecl x' _) = x == x'
+matchClassDecl _ _ = False
 
 -- Scope Graph Library Convenience
 edge :: Scope Sc Label Decl < f => Sc -> Label -> Sc -> Free f ()
@@ -167,7 +172,7 @@ discoverPackageClasses (CompilationUnit _ (ClassDeclaration className _ isStatic
 -- Phase 2: Per Package, Discover all class members, add imports, validate class member types
 tcPackage :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaPackage -> Sc -> Free f ()
 tcPackage (JavaPackage n cu) programScope = do
-  packageDecl <- query programScope packageRe pShortest (matchDecl n)
+  packageDecl <- query programScope packageRe pShortest (matchPackageDecl n)
   case packageDecl of
     [] -> err $ "Package " ++ n ++ " not found"
     [PackageDecl _ packageScope] -> do
@@ -179,7 +184,7 @@ tcPackage (JavaPackage n cu) programScope = do
 -- Phase 2: Per Class, Validate imports, Add class constructor, add Members
 tcClassMemberDeclarations :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
 tcClassMemberDeclarations (CompilationUnit imports (ClassDeclaration className memebers _ constructor)) packageScope = do
-  classDecl <- query packageScope classRe pShortest (matchDecl className)
+  classDecl <- query packageScope classRe pShortest (matchClassDecl className)
   case classDecl of
     [ClassDecl _ classScope] -> do
       trace ("Resolving imports for class " ++ className ++ " with scope " ++ show classScope)
@@ -196,17 +201,17 @@ tcClassMemberDeclarations (CompilationUnit imports (ClassDeclaration className m
 -- Phase 2: Step 1 (Resove Imports)
 tcImports :: (Functor f, Error String < f, Scope Sc Label Decl < f) => ImportDeclaration -> Sc -> Free f ()
 tcImports (ImportDeclaration m c) classScope = do
-  packageToSearch <- query classScope (Dot (Star $ Atom P) (Atom M)) pShortest (matchDecl m)
-  className <- query classScope (Atom T) pShortest $ const True
+  packageToSearch <- query classScope (Dot (Star $ Atom P) (Atom M)) pShortest (matchPackageDecl m)
+  className <- query classScope (Atom T) pShortest $ const True -- find the type assiociated with the currect scope
 
   case className of
     [] -> err $ "Scope type was not found while importing " ++ m ++ "." ++ c ++ " to scope " ++ show classScope
     [ScopeType t] ->
-      if t == c then err $ "Class " ++ t ++ " is trying to import itself" else
+      if t == c then err $ "Class " ++ t ++ " is trying to import itself" else -- Circular Import
         case packageToSearch of
           [] -> err $ "Imported package " ++ m ++ " not found"
           [PackageDecl n packageScope] -> do
-            classToImport <- query packageScope (Atom Cl) pShortest (matchDecl c)
+            classToImport <- query packageScope (Atom Cl) pShortest (matchClassDecl c)
             case classToImport of
               [] -> err $ "Imported Class " ++ c ++ " not found in package " ++ n
               [ClassDecl c importedClassScope] -> 
@@ -264,7 +269,7 @@ checkIfTypeIsVisibleInScope _ _ = return ()
 -- Phase 3: Step 0 Per Package Per Class Check right hand side of fields and method values
 tcValues :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaPackage -> Sc -> Free f ()
 tcValues (JavaPackage name cu) programScope = do
-  packageD <- query programScope (Atom M) pShortest (matchDecl name)
+  packageD <- query programScope (Atom M) pShortest (matchPackageDecl name)
   case packageD of
     [] -> err $ "In phase 3, package " ++ name ++ " was not found"
     [PackageDecl _ packageScope] -> do
@@ -275,7 +280,7 @@ tcValues (JavaPackage name cu) programScope = do
 -- Phase 3: Step 1.0: Per clas Type check right hand side of fields along with method bodies and cosntructor body
 tcMemebreValues :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
 tcMemebreValues (CompilationUnit _ (ClassDeclaration className memebers _ constructor)) packageScope = do
-  classDecl <- query packageScope classRe pShortest (matchDecl className)
+  classDecl <- query packageScope classRe pShortest (matchClassDecl className)
   case classDecl of
     [ClassDecl n classScope] -> do
       trace ("Type checking body and parameter of constructor of class " ++ show (ClassDecl n classScope)) 
@@ -593,7 +598,7 @@ tcExpr (BinaryOpE expr1 op expr2) scope = do
 tcExpr (UnaryOpE op expr) scope = tcUnaryOp op expr scope
 
 tcExpr (NewE className args) scope = do
-  classDecl <- query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchDecl className)
+  classDecl <- query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchClassDecl className)
   case classDecl of
     [] -> err $ "Class " ++ className ++ " not found from scope " ++ show scope
     [ClassDecl _ classScope] -> do
@@ -611,7 +616,7 @@ tcExpr (FieldAccessE expr fieldName) scope = do
   case object of
     (ObjectType objectName) -> do
       classDecl <- trace ("Querying scope " ++ show scope ++ " for class " ++ objectName)
-        query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchDecl objectName)
+        query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchClassDecl objectName)
       case classDecl of
         [] -> err $ "Class " ++ objectName ++ " not found in from scope " ++ show scope ++ " while type checking FieldAccessE"
         [ClassDecl name classScope] -> do
@@ -630,7 +635,7 @@ tcExpr (MethodInvocationE expr methodName args) scope = do
   object <- tcExpr expr scope
   case object of
     (ObjectType objectName) -> do
-      classDecl <- query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchDecl objectName)
+      classDecl <- query scope (Pipe (Dot (Star $ Atom P)  $ Atom Cl) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom Cl))) pShortest (matchClassDecl objectName)
       case classDecl of
         [] -> err $ "Class " ++ objectName ++ " not found"
         [ClassDecl name classScope] -> do
