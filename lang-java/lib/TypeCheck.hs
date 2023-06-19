@@ -211,7 +211,7 @@ addClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) =>
 addClassConstructor (Just (Constructor params _)) className classScope = do
   trace ("Validating Constuctor parameter types " ++ show [ t | Parameter t _ <-  params] ++ " for class " ++ className)
     mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
-  trace ("Adding Constructor Declaration " ++ show (ConstructorDecl className params) ++ " to scope " ++ show classScope) 
+  trace ("Adding Constructor sink classScope D $ ConstructorDecl className paramsDeclaration " ++ show (ConstructorDecl className params) ++ " to scope " ++ show classScope) 
     sink classScope D $ ConstructorDecl className params
 addClassConstructor (Just DefaultConstructor) className classScope = 
   trace ("Adding Defualt Constructor Declaration " ++ show (ConstructorDecl className []) ++ " to scope " ++ show classScope)
