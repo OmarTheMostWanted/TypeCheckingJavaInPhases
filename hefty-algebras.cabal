@@ -2,9 +2,6 @@ cabal-version:          2.4
 name:                   hefty-algebras
 version:                0.1.0.0
 
-author:                 Casper Bach Poulsen
-maintainer:             casperbp@gmail.com
-
 
 -- Main library
 
@@ -140,74 +137,6 @@ test-suite aterm-tests
     other-modules:      Tests
                         Integration
 
--- Hindley Milner Example Language
-
-executable hm
-    main-is:            Main.hs
-    build-depends:      base >= 4.14,
-                        containers >= 0.6.5.1,
-                        transformers >= 0.5.6.2,
-                        hefty-algebras
-    hs-source-dirs:     lang-hm
-    default-language:   Haskell2010
-    other-modules:      Syntax
-                        HMScope
-                        AlgJ
-    default-extensions: TypeApplications
-                        TypeOperators
-                        FlexibleContexts
-                        LambdaCase
-    ghc-options:        -O3
-                        -threaded
-
--- My Language
-
-library mylang-lib
-    hs-source-dirs:     lang-mylang/lib
-    exposed-modules:    Syntax
-                        TypeCheck
-    build-depends:      base >=4.14 && <5,
-                        containers >= 0.6.5.1,
-                        transformers >= 0.5.6.2,
-                        hefty-algebras
-    default-language:   Haskell2010
-    default-extensions: TypeApplications
-                        TypeOperators
-                        ScopedTypeVariables
-                        LambdaCase
-                        FlexibleContexts
-    ghc-options:        -W
-                        -O3
-                        -threaded
-
-executable mylang
-    main-is:            Main.hs
-    build-depends:      base >= 4.14,
-                        containers >= 0.6.5.1,
-                        transformers >= 0.5.6.2,
-                        mylang-lib
-    hs-source-dirs:     lang-mylang/app
-    default-language:   Haskell2010
-    default-extensions: TypeApplications
-                        TypeOperators
-                        ScopedTypeVariables
-                        LambdaCase
-                        FlexibleContexts
-    ghc-options:        -O3
-                        -threaded
-
-test-suite mylang-test
-    type:               exitcode-stdio-1.0
-    main-is:            Main.hs
-    build-depends:      base >= 4.14,
-                        transformers >= 0.5.6.2,
-                        mtl >= 2.3.1,
-                        HUnit ^>= 1.6.1,
-                        hefty-algebras,
-                        mylang-lib
-    hs-source-dirs:     lang-mylang/tests
-    default-language:   Haskell2010
-    other-modules:      
 
 -- java
 
