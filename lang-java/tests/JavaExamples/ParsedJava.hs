@@ -1667,3 +1667,129 @@ breakOutsideOfLoop = [JavaPackage "PackageB" [classBCompilationUnit]]
       CompilationUnit
         []
         (ClassDeclaration "ClassB" [] False (Just Constructor {constructorParameters=[], constructorBody=[BreakS]}))
+
+
+
+
+{-
+
+package PackageB;
+
+public class ClassB {
+    public int x = 60;
+
+    public int x() {
+        return x + 9;
+    }
+}
+
+
+-}
+
+fieldMethodSameName :: [JavaPackage]
+fieldMethodSameName = [JavaPackage "PackageB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ FieldDeclaration IntType "x" (Just (LiteralE (IntLiteral 60)))
+          , MethodDeclaration
+              (Just IntType)
+              "x"
+              []
+              [ ReturnS (Just (BinaryOpE (VariableIdE "x") ArithmaticOp (LiteralE (IntLiteral 9)))) ]
+          ]
+          False
+          (Just DefaultConstructor)
+        )
+
+{-
+
+package PackageB;
+
+public class ClassB {
+    public int x = 60;
+
+    public int x() {
+        return x + 9;
+    }
+
+    public int x(String y) {
+        return x + 9;
+    }
+}
+
+
+-}
+
+overlaoededMethod :: [JavaPackage]
+overlaoededMethod = [JavaPackage "PackageB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ FieldDeclaration IntType "x" (Just (LiteralE (IntLiteral 60)))
+          , MethodDeclaration
+              (Just IntType)
+              "x"
+              []
+              [ ReturnS (Just (BinaryOpE (VariableIdE "x") ArithmaticOp (LiteralE (IntLiteral 9)))) ]
+          , MethodDeclaration
+              (Just IntType)
+              "x"
+              [Parameter StringType "y"]
+              [ ReturnS (Just (BinaryOpE (VariableIdE "x") ArithmaticOp (LiteralE (IntLiteral 9)))) ]
+          ]
+          False
+          (Just DefaultConstructor)
+        )
+
+
+{-
+
+package PackageB;
+
+public class ClassB {
+    public int x = 60;
+
+    public int x() {
+        return x + 9;
+    }
+
+    public int x(String y) {
+        return x + 9;
+    }
+}
+
+
+-}
+
+duplicateMethod :: [JavaPackage]
+duplicateMethod = [JavaPackage "PackageB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [MethodDeclaration
+              (Just IntType)
+              "x"
+              [Parameter StringType "y"]
+              [ ReturnS (Just (BinaryOpE (VariableIdE "x") ArithmaticOp (LiteralE (IntLiteral 9)))) ]
+          , MethodDeclaration
+              (Just IntType)
+              "x"
+              [Parameter StringType "y"]
+              [ ReturnS (Just (BinaryOpE (VariableIdE "x") ArithmaticOp (LiteralE (IntLiteral 9)))) ]
+          ]
+          False
+          (Just DefaultConstructor)
+        )

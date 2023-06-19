@@ -13,7 +13,6 @@ import TypeCheck (runTC, Label, Decl, re)
 import qualified System.Exit as Exit
 import ParsedJava
 import Free.Scope (Graph)
-import ParsedJava (simplyClass)
 
 runFullTCTest :: [JavaPackage] -> IO ((), Graph Label Decl) 
 runFullTCTest = either assertFailure return . runTC
@@ -164,6 +163,16 @@ doubleImportedClassMethodCallTest = do
   t <- runFullTCTest doubleImportedClassMethodCall
   return $ fst t
 
+fieldMethodSameNameTest :: IO ()
+fieldMethodSameNameTest = do
+  t <- runFullTCTest fieldMethodSameName
+  return $ fst t
+
+overlaoededMethodTest :: IO ()
+overlaoededMethodTest = do
+  t <- runFullTCTest overlaoededMethod
+  return $ fst t
+
 -----------------------------------------------------------------------------
 
 failTestNoImportTest ::  IO ()
@@ -211,10 +220,10 @@ breakOutsideOfLoopExpectedFailTest = do
   t <- runFullTCTFail breakOutsideOfLoop
   assertEqual "Expected error: " "Break is not allowed outside of loop" t
 
--- ExpectedFailTest ::  IO ()
--- ExpectedFailTest = do
---   t <- runFullTCTFail 
---   assertEqual "Expected error: " t
+duplicateMethodExpectedFailTest ::  IO ()
+duplicateMethodExpectedFailTest = do
+  t <- runFullTCTFail duplicateMethod
+  assertEqual "Expected error: " "Error: there is already a declaration MethodDecl \"x\" (Just IntType) [Parameter StringType \"y\"] at label D" t
 
 -- ExpectedFailTest ::  IO ()
 -- ExpectedFailTest = do
@@ -249,6 +258,8 @@ tests = TestList
       "completeTestTest" ~: completeTestTest,
       "importedClassMethodCallTest" ~: importedClassMethodCallTest,
       "doubleImportedClassMethodCallTest" ~: doubleImportedClassMethodCallTest,
+      "fieldMethodSameNameTest" ~: fieldMethodSameNameTest,
+      "overlaoededMethodTest" ~: overlaoededMethodTest,
 
 
       "failTestNoImportTest" ~: failTestNoImportTest,
@@ -258,7 +269,8 @@ tests = TestList
       "typeMissMatchWithDeclarationExpectedFailTest" ~: typeMissMatchWithDeclarationExpectedFailTest,
       "importingSelfExpectedFailTest" ~: importingSelfExpectedFailTest,
       "cantUseImportedFieldWithoutQualificationExpectedFailTest" ~: cantUseImportedFieldWithoutQualificationExpectedFailTest,
-      "breakOutsideOfLoopExpectedFailTest" ~: breakOutsideOfLoopExpectedFailTest
+      "breakOutsideOfLoopExpectedFailTest" ~: breakOutsideOfLoopExpectedFailTest,
+      "duplicateMethodExpectedFailTest" ~: duplicateMethodExpectedFailTest
       
 
 

@@ -748,8 +748,41 @@ doubleImportedClassMethodCall = [JavaPackage "PackageB" [classBCompilationUnit] 
             (ClassDeclaration "ClassA" [MethodDeclaration Nothing "method" [] [ VariableDeclarationS (ObjectType "ClassB") "b" (Just $ NewE "ClassB" [])  , 
             VariableDeclarationS BooleanType "res" $ Just (MethodInvocationE (VariableIdE "b") "method" []) ]] False (Just DefaultConstructor))
 
+{-
 
+package PackageB;
+
+public class ClassB {
+    public int x = 60;
+
+    public int x() {
+        return x + 9;
+    }
+}
+
+
+-}
+
+fieldMethodSameName :: [JavaPackage]
+fieldMethodSameName = [JavaPackage "PackageB" [classBCompilationUnit]]
+  where
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
+      CompilationUnit
+        []
+        (ClassDeclaration
+          "ClassB"
+          [ FieldDeclaration IntType "x" (Just (LiteralE (IntLiteral 60)))
+          , MethodDeclaration
+              (Just IntType)
+              "x"
+              []
+              [ ReturnS (Just (BinaryOpE (VariableIdE "x") ArithmaticOp (LiteralE (IntLiteral 9)))) ]
+          ]
+          False
+          (Just DefaultConstructor)
+        )
 
 main :: IO ()
 main = do
-    print $ runTC doubleImportedClassMethodCall
+    print $ runTC fieldMethodSameName

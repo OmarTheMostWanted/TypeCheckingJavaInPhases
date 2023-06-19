@@ -11,6 +11,7 @@ import Syntax
 import Control.Monad
 
 import Debug.Trace
+import Control.Exception (Exception)
 
 
 data Label
@@ -86,6 +87,15 @@ matchConstructor _ = False
 matchScopeType :: String -> Decl -> Bool
 matchScopeType x (ScopeType x') = x == x'
 matchScopeType _ _ = False
+
+matchFieldDecl :: String -> Decl -> Bool
+matchFieldDecl x (VarDecl x' _) = x == x'
+matchFieldDecl _ _ = False
+
+matchMethodDecl :: String -> [JavaType] -> Decl -> Bool
+matchMethodDecl x args (MethodDecl x' _ params) = x == x' && args == [t | (Parameter t _) <- params]
+matchMethodDecl _ _ _ = False
+
 
 
 -- Scope Graph Library Convenience
@@ -558,23 +568,24 @@ tcExpr ThisE scope = do
 
 tcExpr (LiteralE l) _ = tcLiteral l
 tcExpr (VariableIdE varName) scope = do
-  variableDecl <- trace ("Searching for " ++ varName ++ " in scope " ++ show scope) query scope (Dot (Star $ Atom P)  $ Atom D) pShortest (matchDecl varName) --BUG: removed imported variable names TODO also include static class Names
+  variableDecl <- trace ("Searching for " ++ varName ++ " in scope " ++ show scope) query scope (Dot (Star $ Atom P)  $ Atom D) pShortest (matchFieldDecl varName) --BUG: removed imported variable names TODO also include static class Names
   case variableDecl of
     [VarDecl _ varType] -> return varType
     [] -> err $ "Variable " ++ varName ++ " not found" -- if nothing is found try this first
     _ -> err $ "More than one Decl of variable " ++ varName ++ " found"
 
 tcExpr (MethodCallE methodName args) scope = do
-  methodDecl <- trace ("Searching for method " ++ methodName ++ " in scope " ++ show scope) query scope (Dot (Star $ Atom P)  $ Atom D) pShortest (matchDecl methodName) -- static method imports not implemented
+  actualArgs <- mapM (`tcExpr` scope) args
+  methodDecl <- trace ("Searching for method " ++ methodName ++ " in scope " ++ show scope) query scope (Dot (Star $ Atom P)  $ Atom D) pShortest (matchMethodDecl methodName actualArgs)
   case methodDecl of
-    [MethodDecl _ (Just rt) params] -> do
-      tcMethodArgs params args scope
+    [MethodDecl _ (Just rt) _] -> do
+      -- tcMethodArgs params actualArgs scope
       return rt
-    [MethodDecl _ Nothing params] -> do
-      tcMethodArgs params args scope
+    [MethodDecl _ Nothing _] -> do
+      -- tcMethodArgs params actualArgs scope
       return Void
-    [] -> err $ "Method " ++ methodName ++ " Not Found in class with scope " ++ show scope 
-    _ -> err $ "More than one Decl of method " ++ methodName ++ " found"  --  TODO  overriding and overlaoding????? an adtional step to find a method that matches the used args
+    [] -> err $ "Method " ++ methodName ++ " with parameter list " ++ show actualArgs ++ " Not Found in scope " ++ show scope 
+    _ -> err $ "More than one method with the name " ++ methodName ++ "and paramter list " ++ show actualArgs ++ " found in scope " ++ show scope 
 
 tcExpr (BinaryOpE expr1 op expr2) scope = do
   tcBinaryOp op expr1 expr2 scope
@@ -605,11 +616,11 @@ tcExpr (FieldAccessE expr fieldName) scope = do
         [] -> err $ "Class " ++ objectName ++ " not found in from scope " ++ show scope ++ " while type checking FieldAccessE"
         [ClassDecl name classScope] -> do
           fieldDecl <- trace ("Querying scope " ++ show classScope ++ " for varaible " ++ fieldName) 
-            query classScope (Dot (Star $ Atom P)  $ Atom D)  pShortest (matchDecl fieldName)
+            query classScope (Dot (Star $ Atom P)  $ Atom D)  pShortest (matchFieldDecl fieldName)
           case fieldDecl of
             [] -> err $ "Field " ++ fieldName ++ " not found in class " ++ name
             [VarDecl _ t] -> return t
-            _ -> err "More than on deffiniton found"
+            _ -> err $ "Ambiguity in field name " ++ show fieldName
         _ -> err $ "More than one class found with name " ++ objectName ++ " while resolving " ++ show (FieldAccessE expr fieldName) ++ show classDecl
     _ -> err $ "Name found but was not for an object, it was a " ++ show object
 
@@ -623,17 +634,18 @@ tcExpr (MethodInvocationE expr methodName args) scope = do
       case classDecl of
         [] -> err $ "Class " ++ objectName ++ " not found"
         [ClassDecl name classScope] -> do
-          methodDecl <- query classScope re pShortest (matchDecl methodName)
+          actualArgs <- mapM (`tcExpr` scope) args
+          methodDecl <- query classScope re pShortest (matchMethodDecl methodName actualArgs)
           case methodDecl of
-            [] -> err $ "Method " ++ methodName ++ " not found in class " ++ name
-            [MethodDecl _ (Just t) params] -> do
-              tcMethodArgs params args scope
+            [] -> err $ "Method " ++ methodName ++ " with parameter list " ++ show actualArgs ++ " Not Found in class " ++ show name 
+            [MethodDecl _ (Just t) _] -> do
+              -- tcMethodArgs params args scope
               return t
-            [MethodDecl _ Nothing params] -> do
-              tcMethodArgs params args scope
+            [MethodDecl _ Nothing _] -> do
+              -- tcMethodArgs params args scope
               return Void
-            _ -> err "More than on deffiniton found"
-        _ -> err "More than one class found"
+            _ -> err $ "More than one method with the name " ++ methodName ++ "and paramter list " ++ show actualArgs ++ " found in class " ++ show name 
+        _ -> err $ "Ambiguity in class name " ++ show objectName
     _ -> err $ "Name found but was not for an object, it was a " ++ show object
 
 
