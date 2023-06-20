@@ -18,7 +18,8 @@ import Free.Scope (Graph)
 
 import MinistatixTests.Classes
 import MinistatixTests.Expressions
-
+import MinistatixTests.Packages
+import GHC.IO.Exception (assertError)
 
 runFullTCTest :: [JavaPackage] -> IO ((), Graph Label Decl) 
 runFullTCTest = either assertFailure return . runTC
@@ -269,6 +270,41 @@ tryingToUseDefaultConstructorWhenNotAllowedExpectedFailTest = do
 
 
 
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " "" t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " "" t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " "" t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " "" t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " "" t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " "" t
+
+
+
+
+
+
 tests :: Test
 tests = TestList
     [ 
@@ -350,6 +386,21 @@ class_in_package_of_same_name_yes_testTest = do
   t <- runFullTCTest class_in_package_of_same_name_yes_test
   return $ fst t
 
+class_visible_in_own_compilation_unit_of_nested_package_yes_testTest :: IO ()
+class_visible_in_own_compilation_unit_of_nested_package_yes_testTest = do
+  t <- runFullTCTest class_visible_in_own_compilation_unit_of_nested_package_yes_test
+  return $ fst t
+
+class_visible_in_own_ompilation_unit_of_toplevel_package_yes_testTest :: IO ()
+class_visible_in_own_ompilation_unit_of_toplevel_package_yes_testTest = do
+  t <- runFullTCTest class_visible_in_own_ompilation_unit_of_toplevel_package_yes_test
+  return $ fst t
+
+single_type_import_from_toplevel_package_yes_testTest :: IO ()
+single_type_import_from_toplevel_package_yes_testTest = do
+  t <- runFullTCTest single_type_import_from_toplevel_package_yes_test
+  return $ fst t
+
 -- Test :: IO ()
 -- Test = do
 --   t <- runFullTCTest 
@@ -392,6 +443,30 @@ new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest = do
   t <- runFullTCTFail new_pkg_qualified_class_unbound_pkg_no_test
   assertEqual "Expected error: " "Type A doesn't exist in scope" t
 
+classes_with_same_name_in_unnamed_package_no_testExpectedFailTest ::  IO ()
+classes_with_same_name_in_unnamed_package_no_testExpectedFailTest = do
+  t <- runFullTCTFail classes_with_same_name_in_unnamed_package_no_test
+  assertEqual "Expected error: " "Ambiguity in Class Name A" t
+
+single_file_import_not_visible_in_other_compilation_units_of_same_package_no_testExpectedFailTest ::  IO ()
+single_file_import_not_visible_in_other_compilation_units_of_same_package_no_testExpectedFailTest = do
+  t <- runFullTCTFail single_file_import_not_visible_in_other_compilation_units_of_same_package_no_test
+  assertEqual "Expected error: " "Type C doesn't exist in scope" t
+
+single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_testExpectedFailTest ::  IO ()
+single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_testExpectedFailTest = do
+  t <- runFullTCTFail single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_test
+  assertEqual "Expected error: " "Class A is trying to import itself" t
+
+unqualified_reference_to_missing_class_no_testExpectedFailTest ::  IO ()
+unqualified_reference_to_missing_class_no_testExpectedFailTest = do
+  t <- runFullTCTFail unqualified_reference_to_missing_class_no_test
+  assertEqual "Expected error: " "Type B doesn't exist in scope" t
+
+failtTest ::  IO ()
+failtTest = do
+  runFullTCTFail class_in_unnamed_package_invisible_in_compilation_units_of_toplevel_package_no_test
+  return ()
 -- ExpectedFailTest ::  IO ()
 -- ExpectedFailTest = do
 --   t <- runFullTCTFail 
@@ -406,6 +481,7 @@ new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest = do
 -- ExpectedFailTest = do
 --   t <- runFullTCTFail 
 --   assertEqual "Expected error: " t
+
 
 
 ministatixTests :: Test
@@ -417,13 +493,24 @@ ministatixTests = TestList [
   "formals_yes_testTest" ~: formals_yes_testTest,
   "returntype_yes_testTest" ~: returntype_yes_testTest,
   "class_in_package_of_same_name_yes_testTest" ~: class_in_package_of_same_name_yes_testTest,
+  "class_visible_in_own_compilation_unit_of_nested_package_yes_testTest" ~: class_visible_in_own_compilation_unit_of_nested_package_yes_testTest,
+  "class_visible_in_own_ompilation_unit_of_toplevel_package_yes_testTest" ~: class_visible_in_own_ompilation_unit_of_toplevel_package_yes_testTest,
+  "single_type_import_from_toplevel_package_yes_testTest" ~: single_type_import_from_toplevel_package_yes_testTest,
+
 
 
   "declaration_no_testExpectedFailTest" ~: declaration_no_testExpectedFailTest,
   "unbound_no_testExpectedFailTest" ~: unbound_no_testExpectedFailTest,
   "formalunbound_no_testExpectedFailTest" ~: formalunbound_no_testExpectedFailTest,
   "toplevelandimportclasssamename_no_testExpectedFailTest" ~: toplevelandimportclasssamename_no_testExpectedFailTest,
-  "new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest" ~: new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest
+  "new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest" ~: new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest,
+  "classes_with_same_name_in_unnamed_package_no_testExpectedFailTest" ~: classes_with_same_name_in_unnamed_package_no_testExpectedFailTest,
+  "single_file_import_not_visible_in_other_compilation_units_of_same_package_no_test" ~: single_file_import_not_visible_in_other_compilation_units_of_same_package_no_testExpectedFailTest,
+  "single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_testExpectedFailTest" ~: single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_testExpectedFailTest, -- false error
+  "unqualified_reference_to_missing_class_no_testExpectedFailTest" ~: unqualified_reference_to_missing_class_no_testExpectedFailTest,
+  "failtTest" ~: failtTest
+
+  
   ]
 
 main :: IO ()
@@ -477,5 +564,11 @@ interfaces/*
 
 locals/*
 
+class-in-compilation-unit-shadows-on-demand-imported-class.no.test maybe
+class-in-compilation-unit-shadows-on-demand-imported-class.yes.test maybe
+class-in-parent-package-not-visible-in-compilation-unit-of-nested-package.no.test maybe
+class-in-same-package-shadows-on-demand-imported-class.no.test maybe
+class-in-same-package-shadows-on-demand-imported-class.yes.test maybe
+class-in-unnamed-package-invisible-in-compilation-units-of-toplevel-package.no.test maybe
 
 -} 

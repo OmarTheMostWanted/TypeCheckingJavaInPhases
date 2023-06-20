@@ -191,3 +191,4 @@ test-suite java-test
     other-modules:      ParsedJava
                         MinistatixTests.Classes
                         MinistatixTests.Expressions
+                        MinistatixTests.Packages
