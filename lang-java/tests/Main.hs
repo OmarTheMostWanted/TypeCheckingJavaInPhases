@@ -17,6 +17,8 @@ import ParsedJava
 import Free.Scope (Graph)
 
 import MinistatixTests.Classes
+import MinistatixTests.Expressions
+
 
 runFullTCTest :: [JavaPackage] -> IO ((), Graph Label Decl) 
 runFullTCTest = either assertFailure return . runTC
@@ -385,10 +387,10 @@ toplevelandimportclasssamename_no_testExpectedFailTest = do
   t <- runFullTCTFail toplevelandimportclasssamename_no_test
   assertEqual "Expected error: " "Ambiguity in Class Name List" t
 
--- ExpectedFailTest ::  IO ()
--- ExpectedFailTest = do
---   t <- runFullTCTFail 
---   assertEqual "Expected error: " t
+new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest ::  IO ()
+new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest = do
+  t <- runFullTCTFail new_pkg_qualified_class_unbound_pkg_no_test
+  assertEqual "Expected error: " "Type A doesn't exist in scope" t
 
 -- ExpectedFailTest ::  IO ()
 -- ExpectedFailTest = do
@@ -420,7 +422,8 @@ ministatixTests = TestList [
   "declaration_no_testExpectedFailTest" ~: declaration_no_testExpectedFailTest,
   "unbound_no_testExpectedFailTest" ~: unbound_no_testExpectedFailTest,
   "formalunbound_no_testExpectedFailTest" ~: formalunbound_no_testExpectedFailTest,
-  "toplevelandimportclasssamename_no_testExpectedFailTest" ~: toplevelandimportclasssamename_no_testExpectedFailTest
+  "toplevelandimportclasssamename_no_testExpectedFailTest" ~: toplevelandimportclasssamename_no_testExpectedFailTest,
+  "new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest" ~: new_pkg_qualified_class_unbound_pkg_no_testExpectedFailTest
   ]
 
 main :: IO ()
@@ -461,6 +464,18 @@ innerandimportedclasssamename.yes.test unsupported
 innerclass-same-name-as-toplevel-class-in-other-compilation-unit.yes.test unsupported
 innerclass-same-name-as-toplevel-class-in-other-compilation-unit.yes.test unsupported
 innerclasssamename.no.test unsupported
-innerinnerclasssamename.no.test
+innerinnerclasssamename.no.test unsupported
+
+toplevelclass.no.test maybe
+toplevelinterface.no.test unsupported
+
+new-pkg-qualified-class-unbound-pkg.no.test unsupported
+new-pkg-qualified-class.yes.test unsupported
+new-pkg-qualified-class-unbound-pkg.no.test maybe
+
+interfaces/*
+
+locals/*
+
 
 -} 

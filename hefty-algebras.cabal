@@ -190,3 +190,4 @@ test-suite java-test
     default-language:   Haskell2010
     other-modules:      ParsedJava
                         MinistatixTests.Classes
+                        MinistatixTests.Expressions

@@ -292,7 +292,7 @@ class_in_package_of_same_name_yes_test = [JavaPackage "P" [ca]]
 -- import javas.util.List;
 -- public class List {}
 
-toplevelandimportclasssamename_no_test = [JavaPackage "javas.util" [ca]]
+toplevelandimportclasssamename_no_test = [JavaPackage "javas.util" [ca,cb]]
   where
     ca :: CompilationUnit
     ca =
