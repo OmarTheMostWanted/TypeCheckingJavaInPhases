@@ -31,8 +31,8 @@ testSimpleFull = do
         [ImportDeclaration "MyPackage2" "MyClass2"] 
         $ ClassDeclaration "MyClass" 
           [FieldDeclaration IntType "myField" Nothing, MethodDeclaration Nothing "myMethod" [] []] 
-          False Nothing]
-    javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
+          False []]
+    javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True []]
 
 
 testSimpleFullWithMethodBody :: IO ()
@@ -45,8 +45,8 @@ testSimpleFullWithMethodBody = do
         [] 
         $ ClassDeclaration "MyClass" 
           [FieldDeclaration IntType "myField" $ Just $ LiteralE $ IntLiteral 69, MethodDeclaration (Just IntType) "myMethod" [] [ReturnS $ Just $ VariableIdE "myField"]] 
-          False Nothing]
-    javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
+          False []]
+    javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True [] ]
 
 
 testUsingImport :: IO ()
@@ -59,8 +59,8 @@ testUsingImport = do
         [ImportDeclaration "MyPackage2" "MyClass2"] 
         $ ClassDeclaration "MyClass" 
           [FieldDeclaration IntType "myField" Nothing, MethodDeclaration (Just IntType) "myMethod" [] [ReturnS $ Just $ VariableIdE "myField"]]
-          False Nothing]
-    javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True Nothing]
+          False []]
+    javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True []]
 
 
 simplyClassTest :: IO ()
@@ -173,6 +173,32 @@ overlaoededMethodTest = do
   t <- runFullTCTest overlaoededMethod
   return $ fst t
 
+mutipleConstructorsTest :: IO ()
+mutipleConstructorsTest = do
+  t <- runFullTCTest mutipleConstructors
+  return $ fst t
+
+mutipleConstructorsUsageTest :: IO ()
+mutipleConstructorsUsageTest = do
+  t <- runFullTCTest mutipleConstructorsUsage
+  return $ fst t
+
+correctUseOfDefaultConstructorTest :: IO ()
+correctUseOfDefaultConstructorTest = do
+  t <- runFullTCTest correctUseOfDefaultConstructor
+  return $ fst t
+
+importedClassAsMethodParameterTest :: IO ()
+importedClassAsMethodParameterTest = do
+  t <- runFullTCTest importedClassAsMethodParameter
+  return $ fst t
+
+-- Test :: IO ()
+-- Test = do
+--   t <- runFullTCTest 
+--   return $ fst t
+
+
 -----------------------------------------------------------------------------
 
 failTestNoImportTest ::  IO ()
@@ -225,6 +251,27 @@ duplicateMethodExpectedFailTest = do
   t <- runFullTCTFail duplicateMethod
   assertEqual "Expected error: " "Error: there is already a declaration MethodDecl \"x\" (Just IntType) [Parameter StringType \"y\"] at label D" t
 
+creatingAnInstanceOfStaticClassExpectedFailTest ::  IO ()
+creatingAnInstanceOfStaticClassExpectedFailTest = do
+  t <- runFullTCTFail creatingAnInstanceOfStaticClass
+  assertEqual "Expected error: " "Class ClassB is static and can't be estentiated" t
+
+tryingToUseDefaultConstructorWhenNotAllowedExpectedFailTest ::  IO ()
+tryingToUseDefaultConstructorWhenNotAllowedExpectedFailTest = do
+  t <- runFullTCTFail tryingToUseDefaultConstructorWhenNotAllowed
+  assertEqual "Expected error: " "No constructor found with parameter list [] in class ClassB" t
+
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " t
+
 -- ExpectedFailTest ::  IO ()
 -- ExpectedFailTest = do
 --   t <- runFullTCTFail 
@@ -239,7 +286,7 @@ duplicateMethodExpectedFailTest = do
 tests :: Test
 tests = TestList
     [ 
-      "testSimpleFull" ~: testSimpleFull ,
+      "testSimpleFull" ~: testSimpleFull,
       "testSimpleFullWithMethodBody" ~: testSimpleFullWithMethodBody,
       "simplyClassTest" ~: simplyClassTest,
       "usingFieldTest" ~: usingFieldTest,
@@ -260,6 +307,10 @@ tests = TestList
       "doubleImportedClassMethodCallTest" ~: doubleImportedClassMethodCallTest,
       "fieldMethodSameNameTest" ~: fieldMethodSameNameTest,
       "overlaoededMethodTest" ~: overlaoededMethodTest,
+      "mutipleConstructorsTest" ~: mutipleConstructorsTest,
+      "mutipleConstructorsUsageTest" ~: mutipleConstructorsUsageTest,
+      "correctUseOfDefaultConstructorTest" ~: correctUseOfDefaultConstructorTest,
+      "importedClassAsMethodParameterTest" ~: importedClassAsMethodParameterTest,
 
 
       "failTestNoImportTest" ~: failTestNoImportTest,
@@ -270,10 +321,9 @@ tests = TestList
       "importingSelfExpectedFailTest" ~: importingSelfExpectedFailTest,
       "cantUseImportedFieldWithoutQualificationExpectedFailTest" ~: cantUseImportedFieldWithoutQualificationExpectedFailTest,
       "breakOutsideOfLoopExpectedFailTest" ~: breakOutsideOfLoopExpectedFailTest,
-      "duplicateMethodExpectedFailTest" ~: duplicateMethodExpectedFailTest
-      
-
-
+      "duplicateMethodExpectedFailTest" ~: duplicateMethodExpectedFailTest,
+      "creatingAnInstanceOfStaticClassExpectedFailTest" ~: creatingAnInstanceOfStaticClassExpectedFailTest,
+      "tryingToUseDefaultConstructorWhenNotAllowedExpectedFailTest" ~: tryingToUseDefaultConstructorWhenNotAllowedExpectedFailTest
     ]
 
 
