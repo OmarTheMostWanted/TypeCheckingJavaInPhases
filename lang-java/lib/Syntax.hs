@@ -14,6 +14,7 @@ data JavaType
   | ObjectType String               -- Represents custom object types with the given name
   | ArrayType JavaType              -- Represents an array type of the specified Java type
   | Void                            -- Represents the Java type 'void' (only used to show that a method call returns void, for method declarations Use Nothing as a return intead of Just Void)
+  | Null
   deriving (Eq, Show)
 
 
@@ -92,7 +93,7 @@ data ClassDeclaration =
     className :: String,              -- The name of the class
     members :: [Member],               -- The list of members (fields and methods) in the class all are assumed to be public for now
     isStatic :: Bool,                  -- Indicates if the class is static or not
-    constructor :: Maybe Constructor   -- The optional constructor of the class (Nothing for static classes) use DefaultConstructor when the constructor in not defined explisitly which implies that the inherted constructor will be used
+    constructor :: [Constructor]   -- The optional constructor of the class (Nothing for static classes) use DefaultConstructor when the constructor in not defined explisitly which implies that the inherted constructor will be used
   }
   deriving (Eq, Show)
 
@@ -109,11 +110,11 @@ data Member
 
 
 -- Data type for Constructor
-data Constructor = Constructor {               -- A constructor definiton when a constructor is explicitly defined in the class body
+data Constructor = Constructor {      
+  constructorName :: String,         -- A constructor definiton when a constructor is explicitly defined in the class body
   constructorParameters :: [MethodParameter],  -- The list of constructor parameters
   constructorBody :: [Statement]               -- The list of statements in the  constructor body
   }
-  | DefaultConstructor -- Represents a default constructor that uses the super constructor when the class is not static but doesn't have an explicit constructor
   deriving (Eq, Show)
 
 -- Data type for Method Parameter
