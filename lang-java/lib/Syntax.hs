@@ -14,6 +14,7 @@ data JavaType
   | ObjectType String               -- Represents custom object types with the given name
   | ArrayType JavaType              -- Represents an array type of the specified Java type
   | Void                            -- Represents the Java type 'void' (only used to show that a method call returns void, for method declarations Use Nothing as a return intead of Just Void)
+  | Null
   deriving (Eq, Show)
 
 

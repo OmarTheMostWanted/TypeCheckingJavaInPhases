@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use camelCase" #-}
 module Main where
 
 import Test.HUnit
@@ -13,6 +15,8 @@ import TypeCheck (runTC, Label, Decl, re)
 import qualified System.Exit as Exit
 import ParsedJava
 import Free.Scope (Graph)
+
+import MinistatixTests.Classes
 
 runFullTCTest :: [JavaPackage] -> IO ((), Graph Label Decl) 
 runFullTCTest = either assertFailure return . runTC
@@ -226,7 +230,7 @@ mssingReturnInElseBlockExpectedFailTest = do
 typeMissMatchWithDeclarationExpectedFailTest ::  IO ()
 typeMissMatchWithDeclarationExpectedFailTest = do
   t <- runFullTCTFail typeMissMatchWithDeclaration
-  assertEqual "Expected error: " "Type missmatch expected: IntType but got ObjectType \"ClassB\"" t
+  assertEqual "Expected error: " "Type missmatch while initializing variabled . Expected: IntType but got ObjectType \"ClassB\"" t
 
 
 importingSelfExpectedFailTest ::  IO ()
@@ -261,26 +265,6 @@ tryingToUseDefaultConstructorWhenNotAllowedExpectedFailTest = do
   t <- runFullTCTFail tryingToUseDefaultConstructorWhenNotAllowed
   assertEqual "Expected error: " "No constructor found with parameter list [] in class ClassB" t
 
-
--- ExpectedFailTest ::  IO ()
--- ExpectedFailTest = do
---   t <- runFullTCTFail 
---   assertEqual "Expected error: " t
-
--- ExpectedFailTest ::  IO ()
--- ExpectedFailTest = do
---   t <- runFullTCTFail 
---   assertEqual "Expected error: " t
-
--- ExpectedFailTest ::  IO ()
--- ExpectedFailTest = do
---   t <- runFullTCTFail 
---   assertEqual "Expected error: " t
-
--- ExpectedFailTest ::  IO ()
--- ExpectedFailTest = do
---   t <- runFullTCTFail 
---   assertEqual "Expected error: " t
 
 
 tests :: Test
@@ -327,8 +311,156 @@ tests = TestList
     ]
 
 
+
+
+declaration_yes_testTest :: IO ()
+declaration_yes_testTest = do
+  t <- runFullTCTest declaration_yes_test 
+  return $ fst t
+
+bound_yes_testTest :: IO ()
+bound_yes_testTest = do
+  t <- runFullTCTest bound_yes_test
+  return $ fst t
+
+cyclic_yes_testTest :: IO ()
+cyclic_yes_testTest = do
+  t <- runFullTCTest cyclic_yes_test
+  return $ fst t
+
+fieldmethodsamename_yes_testTest :: IO ()
+fieldmethodsamename_yes_testTest = do
+  t <- runFullTCTest fieldmethodsamename_yes_test
+  return $ fst t
+
+formals_yes_testTest :: IO ()
+formals_yes_testTest = do
+  t <- runFullTCTest formals_yes_test
+  return $ fst t
+
+returntype_yes_testTest :: IO ()
+returntype_yes_testTest = do
+  t <- runFullTCTest returntype_yes_test
+  return $ fst t
+
+class_in_package_of_same_name_yes_testTest :: IO ()
+class_in_package_of_same_name_yes_testTest = do
+  t <- runFullTCTest class_in_package_of_same_name_yes_test
+  return $ fst t
+
+-- Test :: IO ()
+-- Test = do
+--   t <- runFullTCTest 
+--   return $ fst t
+
+-- Test :: IO ()
+-- Test = do
+--   t <- runFullTCTest 
+--   return $ fst t
+
+-- Test :: IO ()
+-- Test = do
+--   t <- runFullTCTest 
+--   return $ fst t
+
+------------------------------------------------
+
+declaration_no_testExpectedFailTest ::  IO ()
+declaration_no_testExpectedFailTest = do
+  t <- runFullTCTFail declaration_no_test
+  assertEqual "Expected error: " "Invalid constructor Point2D for class \"Point\"" t
+
+unbound_no_testExpectedFailTest ::  IO ()
+unbound_no_testExpectedFailTest = do
+  t <- runFullTCTFail unbound_no_test
+  assertEqual "Expected error: " "Type B doesn't exist in scope" t
+
+formalunbound_no_testExpectedFailTest ::  IO ()
+formalunbound_no_testExpectedFailTest = do
+  t <- runFullTCTFail formalunbound_no_test
+  assertEqual "Expected error: " "Type A doesn't exist in scope" t
+
+toplevelandimportclasssamename_no_testExpectedFailTest ::  IO ()
+toplevelandimportclasssamename_no_testExpectedFailTest = do
+  t <- runFullTCTFail toplevelandimportclasssamename_no_test
+  assertEqual "Expected error: " "Ambiguity in Class Name List" t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " t
+
+-- ExpectedFailTest ::  IO ()
+-- ExpectedFailTest = do
+--   t <- runFullTCTFail 
+--   assertEqual "Expected error: " t
+
+
+ministatixTests :: Test
+ministatixTests = TestList [
+  "declaration_yes_testTest" ~: declaration_yes_testTest,
+  "bound_yes_testTest" ~: bound_yes_testTest,
+  "cyclic_yes_testTest" ~: cyclic_yes_testTest,
+  "fieldmethodsamename_yes_testTest" ~: fieldmethodsamename_yes_testTest,
+  "formals_yes_testTest" ~: formals_yes_testTest,
+  "returntype_yes_testTest" ~: returntype_yes_testTest,
+  "class_in_package_of_same_name_yes_testTest" ~: class_in_package_of_same_name_yes_testTest,
+
+
+  "declaration_no_testExpectedFailTest" ~: declaration_no_testExpectedFailTest,
+  "unbound_no_testExpectedFailTest" ~: unbound_no_testExpectedFailTest,
+  "formalunbound_no_testExpectedFailTest" ~: formalunbound_no_testExpectedFailTest,
+  "toplevelandimportclasssamename_no_testExpectedFailTest" ~: toplevelandimportclasssamename_no_testExpectedFailTest
+  ]
+
 main :: IO ()
 main = do
-    result <- runTestTT tests
+    result <- runTestTT ministatixTests
+    -- result <- runTestTT tests
+
     print result
     if failures result > 0 || errors result > 0   then Exit.exitFailure else Exit.exitSuccess
+
+
+
+
+{-
+
+inner.yes.test unsupported
+innerforward.yes.test unsupported
+
+circular.no.test unsupported
+inheritedshadowself.no.test unsupported
+inheritnestedclass.yes.test unsupported
+inheritnonexistingclass.no.test unsupported
+inheritnonexistingnestedclass.no.test unsupported
+inherittoplevelclass.yes.test unsupported
+
+classdeclsinblockinorder.no.test unsupported
+classdeclsinblockinorder.yes.test unsupported
+
+innerclassformal.yes.test unsupported
+innerclassformalunbound.no.test unsupported
+
+returninnerclasstype.yes.test unsupported
+superfieldaccess.yes.test unsupported
+
+nested/* unsupported
+
+innerandimportedclasssamename.yes.test unsupported
+innerclass-same-name-as-toplevel-class-in-other-compilation-unit.yes.test unsupported
+innerclass-same-name-as-toplevel-class-in-other-compilation-unit.yes.test unsupported
+innerclasssamename.no.test unsupported
+innerinnerclasssamename.no.test
+
+-} 

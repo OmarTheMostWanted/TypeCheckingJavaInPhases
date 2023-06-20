@@ -29,6 +29,7 @@ duplicateMethod = [JavaPackage "PackageB" [classBCompilationUnit]]
         )
         
 
+
 example :: [JavaPackage]
 example = [JavaPackage "PackageB" [CompilationUnit [] classB]]
     where
@@ -41,7 +42,30 @@ example = [JavaPackage "PackageB" [CompilationUnit [] classB]]
                 , isStatic = False
                 , constructor = []
                 }
-    
+
+
+toplevelandimportclasssamename_no_test = [JavaPackage "javas.util" [ca, cb]]
+  where
+    ca :: CompilationUnit
+    ca =
+      CompilationUnit
+        []
+        (ClassDeclaration
+            "List"
+            []
+            False
+            []
+        )
+    cb =
+      CompilationUnit
+        [ImportDeclaration "javas.util" "List"]
+        (ClassDeclaration
+            "List"
+            []
+            False
+            []
+        )
+
 main :: IO ()
 main = do
-    print $ runTC example
+    print $ runTC toplevelandimportclasssamename_no_test

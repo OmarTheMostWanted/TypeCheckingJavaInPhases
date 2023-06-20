@@ -42,9 +42,7 @@ data Decl
 -- projTy (ConstructorDecl t _) = ObjectType t
 
 
--- Regular expression P*D must be chanced to allow for a single import edge I 
 re :: RE Label
--- re = Pipe (Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))) (Dot (Star $ Atom P)  $ Atom F)
 re = Pipe (Dot (Star $ Atom P)  $ Atom D) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom D))
 
 -- Regular expression P*M
@@ -213,6 +211,8 @@ tcClassMemberDeclarations (CompilationUnit imports (ClassDeclaration className m
     [ClassDecl _ classScope] -> do
       trace ("Resolving imports for class " ++ className ++ " with scope " ++ show classScope)
         mapM_ (`tcImports` classScope) imports -- step 1
+      
+      mapM_ (`checkConstructorName` className) constructors -- check constructor name 
 
       trace ("Adding Constructors for class " ++ className ++ " with scope " ++ show classScope)
         mapM_ (`addClassConstructor` classScope) constructors
@@ -291,9 +291,14 @@ addDeclsForClassMemebers m classScope =
 -- checks if a type is visible in scope
 checkIfTypeIsVisibleInScope :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaType -> Sc -> Free f ()
 checkIfTypeIsVisibleInScope (ObjectType typeName) classScope = do
-  match <- query classScope (Pipe (Dot (Star $ Atom P)  $ Atom T) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom T))) pShortest $ matchScopeType typeName -- the re here: Either we are looking for a type in the class scope or for an imported type
+  match <- query classScope (Pipe (Dot (Star $ Atom P)  $ Atom T) (Dot (Dot (Star $ Atom P)  $ Atom I) (Atom T))) pShortest $ matchScopeType typeName -- Priotiry: Local Decl, Explist import, Class in the same package.
   case match of
-    [] -> err $ "Type " ++ typeName ++ " doesn't exist in scope"
+    [] -> do
+      classD <- query classScope (Dot (Star $ Atom P)  $ Atom Cl) pShortest $ matchClassDecl typeName
+      case classD of
+        [] -> err $ "Type " ++ typeName ++ " doesn't exist in scope"
+        [ClassDecl _ _] -> return ()
+        _ -> err $ "Ambiguity in type " ++ typeName ++ " found multiple matchs " ++ show match
     [ScopeType _ _] -> return ()
     _ -> err $ "Ambiguity in type " ++ typeName ++ " found multiple matchs " ++ show match
 checkIfTypeIsVisibleInScope _ _ = return ()
@@ -826,6 +831,11 @@ validateReturn Nothing (Just Void) = return (Just Void)
 validateReturn (Just Void) _ = err "tc bug: method must not return Just Void, use Nothing for void methods"
 validateReturn Nothing (Just b) = err $ "Expected Return Nothing" ++  "but got " ++ show b
 validateReturn  (Just a) Nothing = err $ "Expected Return " ++ show a ++  "but got Nothing"
+validateReturn  (Just a) (Just Null) = 
+  case a of
+    (ObjectType _ ) ->  return (Just a)
+    StringType -> return (Just a)
+    _ -> err $ "Expected Return " ++ show a ++  "but got " ++ show Null
 validateReturn  (Just a) (Just b) = if a == b then return (Just a) else err $ "Expected Return " ++ show a ++  "but got " ++ show b
 validateReturn  Nothing Nothing = return Nothing
 
@@ -862,7 +872,7 @@ tcLiteral (DoubleLiteral _) = return DoubleType
 tcLiteral (BooleanLiteral _) = return BooleanType
 tcLiteral (CharLiteral _) = return CharType
 tcLiteral (StringLiteral _) = return StringType
-tcLiteral NullLiteral = return Void -- Handle null literal case
+tcLiteral NullLiteral = return Null -- Handle null literal case
 
 
 
