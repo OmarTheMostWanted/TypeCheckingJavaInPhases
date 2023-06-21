@@ -192,3 +192,4 @@ test-suite java-test
                         MinistatixTests.Classes
                         MinistatixTests.Expressions
                         MinistatixTests.Packages
+                        NotInMinistatix.Expressions

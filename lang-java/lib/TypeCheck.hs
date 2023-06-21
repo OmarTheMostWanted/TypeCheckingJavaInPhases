@@ -60,7 +60,7 @@ classRe = Dot (Star $ Atom P) $ Atom Cl
 
 -- Path order based on length for shadowing
 pShortest :: PathOrder Label Decl
-pShortest p1 p2 = trace ("Finding shortest between " ++ show p1 ++ " and " ++ show 2)lenRPath p1 < lenRPath p2
+pShortest p1 p2 = trace ("Finding shortest between " ++ show p1 ++ " and " ++ show 2) lenRPath p1 < lenRPath p2
 
 -- Path order based on length for this keyword
 thisPath :: PathOrder Label Decl
@@ -123,7 +123,7 @@ causeMonotonicity2 :: (Functor f, Error String < f, Scope Sc Label Decl < f) => 
 causeMonotonicity2 = do
   programScope <- new
   sink programScope D $ VarDecl "y" IntType
-  
+
   scope <- new
   edge scope P programScope
 
@@ -211,7 +211,7 @@ tcClassMemberDeclarations (CompilationUnit imports (ClassDeclaration className m
     [ClassDecl _ classScope] -> do
       trace ("Resolving imports for class " ++ className ++ " with scope " ++ show classScope)
         mapM_ (`tcImports` classScope) imports -- step 1
-      
+
       mapM_ (`checkConstructorName` className) constructors -- check constructor name 
 
       trace ("Adding Constructors for class " ++ className ++ " with scope " ++ show classScope)
@@ -238,7 +238,7 @@ tcImports (ImportDeclaration m c) classScope = do
             classToImport <- query packageScope (Atom Cl) pShortest (matchClassDecl c)
             case classToImport of
               [] -> err $ "Imported Class " ++ c ++ " not found in package " ++ n
-              [ClassDecl c importedClassScope] -> 
+              [ClassDecl c importedClassScope] ->
                 trace ("Imported class " ++ c ++ " from package " ++ m ++ " into scope " ++ show classScope)
                   edge classScope I importedClassScope
               _ -> err $ "Ambiguity imported class name " ++ c
@@ -250,11 +250,11 @@ addClassConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) =>
 addClassConstructor  (Constructor name params _) classScope = do
   trace ("Validating Constuctor parameter types " ++ show [ t | Parameter t _ <-  params] ++ " for class " ++ name)
     mapM_ (`checkIfTypeIsVisibleInScope` classScope) [ t | Parameter t _ <-  params]
-  trace ("Adding Constructor " ++ show (ConstructorDecl name params) ++ " to scope " ++ show classScope) 
+  trace ("Adding Constructor " ++ show (ConstructorDecl name params) ++ " to scope " ++ show classScope)
     sink classScope D $ ConstructorDecl name params
 
 addDefaultConstructor :: (Functor f, Error String < f, Scope Sc Label Decl < f) => String -> Sc -> Free f ()
-addDefaultConstructor name classScope = 
+addDefaultConstructor name classScope =
   trace ("Adding Defualt Constructor Declaration " ++ show (ConstructorDecl name []) ++ " to scope " ++ show classScope)
     sink classScope D $ ConstructorDecl name []
 
@@ -312,7 +312,7 @@ tcValues (JavaPackage name cu) programScope = do
     [PackageDecl _ packageScope] -> do
       mapM_ (`tcMemebreValues` packageScope) cu
     _ -> err $ "In phase 3, more than one package with name " ++ name ++ " was found matches: " ++  show packageD
-      
+
 
 -- Phase 3: Step 1.0: Per clas Type check right hand side of fields along with method bodies and cosntructor body
 tcMemebreValues :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
@@ -320,7 +320,7 @@ tcMemebreValues (CompilationUnit _ (ClassDeclaration className memebers _ constr
   classDecl <- query packageScope classRe pShortest (matchClassDecl className)
   case classDecl of
     [ClassDecl n classScope] -> do
-      trace ("Type checking body and parameter of constructors of class " ++ show (ClassDecl n classScope)) 
+      trace ("Type checking body and parameter of constructors of class " ++ show (ClassDecl n classScope))
         mapM_ (`tcClassConstructor` classScope) constructors
       mapM_ (`tcClassMemebers` classScope) memebers
     [] -> err $ "In phase 3, class " ++ className ++ " was not found"
@@ -351,8 +351,8 @@ tcClassMemebers m classScope =
       edge methodScope P classScope
       mapM_ (`addParamToMethodScope` methodScope) params
       actual <- trace ("Type checking body of method " ++ show n ++ " with scope " ++ show methodScope) tcBlock rt False body methodScope
-      if rt == removeVoid actual 
-        then return () 
+      if rt == removeVoid actual
+        then return ()
         else err $ "Method declared return type and actual return type don't match expected: " ++ show rt ++ " actual: " ++ show actual
 
 
@@ -477,7 +477,7 @@ tcBlock rt l ((VariableDeclarationS t s maybeInitializer):rest) scope = do
   tcStatement (VariableDeclarationS t s maybeInitializer) scope
   newScope <- new
   edge newScope P scope
-  trace ("Adding declaration for variable " ++ s ++ " in scope " ++ show newScope ++ " that has a P edge to scope " ++ show scope) 
+  trace ("Adding declaration for variable " ++ s ++ " in scope " ++ show newScope ++ " that has a P edge to scope " ++ show scope)
     sink newScope D $ VarDecl s t
   tcBlock rt l rest newScope
 
@@ -588,7 +588,7 @@ tcNestedBlock l ((VariableDeclarationS t s e):rest) scope = do
   tcStatement (VariableDeclarationS t s e) scope
   newScope <- new
   edge newScope P scope
-  trace ("Adding Declaration for  variable " ++ s ++ " in scope " ++ show newScope ++ " that has a P edge to scope " ++ show scope) 
+  trace ("Adding Declaration for  variable " ++ s ++ " in scope " ++ show newScope ++ " that has a P edge to scope " ++ show scope)
     sink newScope D $ VarDecl s t
   tcNestedBlock l rest scope
 
@@ -599,7 +599,7 @@ tcNestedBlock l ((ExpressionS e):rest) scope = do
 
 tcExpr :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Expression -> Sc -> Free f JavaType
 tcExpr ThisE scope = do
-  scopeType <- trace ("Querying for the nearest scope type in scope " ++ show scope ) 
+  scopeType <- trace ("Querying for the nearest scope type in scope " ++ show scope )
     query scope (Dot (Star $ Atom P)  $ Atom T) pShortest (const True) -- we want the nearst scope type for the keyword this
   case scopeType of
     [] -> err $ "No class was found while resolving this from scope " ++ show scope
@@ -624,8 +624,8 @@ tcExpr (MethodCallE methodName args) scope = do
     [MethodDecl _ Nothing _] -> do
       -- tcMethodArgs params actualArgs scope
       return Void
-    [] -> err $ "Method " ++ methodName ++ " with parameter list " ++ show actualArgs ++ " Not Found in scope " ++ show scope 
-    _ -> err $ "More than one method with the name " ++ methodName ++ "and paramter list " ++ show actualArgs ++ " found in scope " ++ show scope 
+    [] -> err $ "Method " ++ methodName ++ " with parameter list " ++ show actualArgs ++ " Not Found in scope " ++ show scope
+    _ -> err $ "More than one method with the name " ++ methodName ++ "and paramter list " ++ show actualArgs ++ " found in scope " ++ show scope
 
 tcExpr (BinaryOpE expr1 op expr2) scope = do
   tcBinaryOp op expr1 expr2 scope
@@ -660,7 +660,7 @@ tcExpr (FieldAccessE expr fieldName) scope = do
       case classDecl of
         [] -> err $ "Class " ++ objectName ++ " not found in from scope " ++ show scope ++ " while type checking FieldAccessE"
         [ClassDecl name classScope] -> do
-          fieldDecl <- trace ("Querying scope " ++ show classScope ++ " for varaible " ++ fieldName) 
+          fieldDecl <- trace ("Querying scope " ++ show classScope ++ " for varaible " ++ fieldName)
             query classScope (Dot (Star $ Atom P)  $ Atom D)  pShortest (matchFieldDecl fieldName)
           case fieldDecl of
             [] -> err $ "Field " ++ fieldName ++ " not found in class " ++ name
@@ -668,8 +668,6 @@ tcExpr (FieldAccessE expr fieldName) scope = do
             _ -> err $ "Ambiguity in field name " ++ show fieldName
         _ -> err $ "More than one class found with name " ++ objectName ++ " while resolving " ++ show (FieldAccessE expr fieldName) ++ show classDecl
     _ -> err $ "Name found but was not for an object, it was a " ++ show object
-
-
 
 tcExpr (MethodInvocationE expr methodName args) scope = do
   object <- tcExpr expr scope
@@ -682,16 +680,46 @@ tcExpr (MethodInvocationE expr methodName args) scope = do
           actualArgs <- mapM (`tcExpr` scope) args
           methodDecl <- query classScope re pShortest (matchMethodDecl methodName actualArgs)
           case methodDecl of
-            [] -> err $ "Method " ++ methodName ++ " with parameter list " ++ show actualArgs ++ " Not Found in class " ++ show name 
+            [] -> err $ "Method " ++ methodName ++ " with parameter list " ++ show actualArgs ++ " Not Found in class " ++ show name
             [MethodDecl _ (Just t) _] -> do
               -- tcMethodArgs params args scope
               return t
             [MethodDecl _ Nothing _] -> do
               -- tcMethodArgs params args scope
               return Void
-            _ -> err $ "More than one method with the name " ++ methodName ++ "and paramter list " ++ show actualArgs ++ " found in class " ++ show name 
+            _ -> err $ "More than one method with the name " ++ methodName ++ "and paramter list " ++ show actualArgs ++ " found in class " ++ show name
         _ -> err $ "Ambiguity in class name " ++ show objectName
     _ -> err $ "Name found but was not for an object, it was a " ++ show object
+
+tcExpr (NewArrayE elemnts) scope =
+  if null elemnts then err "Array can't be initialized with zero elements" else do
+    eTypes <- tcExpr (head elemnts) scope
+    allEqual eTypes (tail elemnts) scope
+    return (ArrayType eTypes)
+
+tcExpr (NewEmptyArrayE length eType) scope = do
+  actual <- tcExpr length scope
+  if actual /= IntType then err $ "Array length can't be " ++ show actual else do
+    checkIfTypeIsVisibleInScope eType scope
+    return (ArrayType eType)
+
+tcExpr (ArrayElementAccessE arr i) scope = do
+  array <- tcExpr arr scope
+  case array of
+    (ArrayType t) -> do
+      index <- tcExpr i scope
+      case index of
+        IntType -> return (t)
+        _ -> err $ "Array index was not a number: " ++ show index
+    _ -> err $ show arr ++ " is not an array"
+
+
+
+allEqual :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaType -> [Expression] -> Sc -> Free f ()
+allEqual _ [] _ = return ()
+allEqual t (x:xs) sc = do
+  actual <- tcExpr x sc
+  if actual == t then allEqual t xs sc else err "Array element types don't match"
 
 
 tcStatement :: (Functor f, Error String < f, Scope Sc Label Decl < f) => Statement -> Sc -> Free f ()
@@ -728,7 +756,7 @@ tcStatement (VariableDeclarationS varType n maybeInitializer) scope = do
     Nothing -> return ()
     Just e -> do
       r <- tcExpr e scope
-      if r == varType 
+      if r == varType
         then return () else err $ "Type missmatch while initializing variabled " ++ n ++ ". Expected: " ++ show varType ++ " but got " ++ show r
 
 
@@ -831,7 +859,7 @@ validateReturn Nothing (Just Void) = return (Just Void)
 validateReturn (Just Void) _ = err "tc bug: method must not return Just Void, use Nothing for void methods"
 validateReturn Nothing (Just b) = err $ "Expected Return Nothing" ++  "but got " ++ show b
 validateReturn  (Just a) Nothing = err $ "Expected Return " ++ show a ++  "but got Nothing"
-validateReturn  (Just a) (Just Null) = 
+validateReturn  (Just a) (Just Null) =
   case a of
     (ObjectType _ ) ->  return (Just a)
     StringType -> return (Just a)

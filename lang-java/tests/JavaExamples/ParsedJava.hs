@@ -32,7 +32,7 @@ public class ClassA {
 }
 
 -}
-
+-- mini yes
 testingThisNameShodowing :: [JavaPackage]
 testingThisNameShodowing = [JavaPackage {packageName = "PackageA", packageMembers = [compilationUnit, myClassCompilationUnit] }]
     where
@@ -118,7 +118,6 @@ public class ClassB {
 
 
 -}
-
 simplyClass :: [JavaPackage]
 simplyClass = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
@@ -153,7 +152,7 @@ public class ClassB {
 }
 
 -}
-
+-- mini yes
 usingField :: [JavaPackage]
 usingField = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
@@ -194,6 +193,7 @@ public class ClassB {
 
 -}
 
+-- mini no
 usingMethods :: [JavaPackage]
 usingMethods = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
@@ -234,7 +234,7 @@ public class ClassB {
 
 
 -}
-
+-- mini no
 usingFieldAndMethod :: [JavaPackage]
 usingFieldAndMethod = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
@@ -273,7 +273,7 @@ public class ClassB {
 }
 
 -}
-
+-- mini no
 usingConditional :: [JavaPackage]
 usingConditional = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
@@ -317,6 +317,7 @@ public class ClassB {
 }
 
 -}
+-- mini no
 
 usingConditionalNoElse :: [JavaPackage]
 usingConditionalNoElse = [JavaPackage "PackageB" [classBCompilationUnit]]
@@ -453,6 +454,7 @@ public class ClassB {
     }
 }
 -}
+-- mini no
 
 usingControlFlow :: [JavaPackage]
 usingControlFlow = [JavaPackage "PackageB" [classBCompilationUnit]]
@@ -565,6 +567,7 @@ public class ClassB {
     }
 }
 -}
+-- mini no
 
 usingControlFlow2 :: [JavaPackage]
 usingControlFlow2 = [JavaPackage "PackageB" [classBCompilationUnit]]
@@ -630,6 +633,7 @@ public class ClassB {
 
 
 -}
+-- mini no
 
 breakStatemtns :: [JavaPackage]
 breakStatemtns = [JavaPackage "PackageB" [CompilationUnit [] classB]]
@@ -670,6 +674,7 @@ public class ClassB {
 
 
 -}
+-- mini no
 
 nextedBlockPath :: [JavaPackage]
 nextedBlockPath = [JavaPackage "PackageB" [CompilationUnit [] classB]]
@@ -711,6 +716,7 @@ public class ClassA {
 
 
 -}
+-- mini yes
 
 -- Haskell code:
 usingAnImportInField :: [JavaPackage]
@@ -781,7 +787,7 @@ public class ClassA {
 --           False
 --           []
 --         )
-
+-- mini no
 byPassingLimitationUsingAveriableThenShadowingit :: [JavaPackage]
 byPassingLimitationUsingAveriableThenShadowingit = [JavaPackage "PackageA" [classACompilationUnit]]
   where
@@ -836,7 +842,7 @@ public class ClassA {
 
 
 -}
-
+-- mini yes
 -- Haskell code:
 creatingAnImportedObject :: [JavaPackage]
 creatingAnImportedObject = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
@@ -914,7 +920,7 @@ public  class ClassA {
 
 -}
 
-
+-- mini no
 completeTest :: [JavaPackage]
 completeTest = [packageA , packageB]
     where
@@ -1005,7 +1011,7 @@ public class ClassA {
 
 
 -}
-
+-- mini no
 -- Haskell code:
 importedClassMethodCall :: [JavaPackage]
 importedClassMethodCall = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
@@ -1068,7 +1074,7 @@ public class ClassA {
 
 
 -}
-
+-- mini no
 -- Haskell code:
 doubleImportedClassMethodCall :: [JavaPackage]
 doubleImportedClassMethodCall = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit] , JavaPackage "PackageC" [classCCompilationUnit]]
@@ -1119,7 +1125,7 @@ public class ClassA {
 
 
 -}
-
+-- mini yes
 -- Haskell code:
 failTestNoImport :: [JavaPackage]
 failTestNoImport = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
@@ -1198,7 +1204,7 @@ public  class ClassA {
 
 -}
 
-
+-- mini no
 wrongReturnTypeInNestedBlock :: [JavaPackage]
 wrongReturnTypeInNestedBlock = [packageA , packageB]
     where
@@ -1321,7 +1327,7 @@ public  class ClassA {
 
 -}
 
-
+-- mini no
 wrongReturnTypeBlock :: [JavaPackage]
 wrongReturnTypeBlock = [packageA , packageB]
     where
@@ -1445,7 +1451,7 @@ public  class ClassA {
 
 -}
 
-
+-- mini no
 mssingReturnInElseBlock :: [JavaPackage]
 mssingReturnInElseBlock = [packageA , packageB]
     where
@@ -1530,7 +1536,7 @@ public class ClassA {
 
 
 -}
-
+-- mini yes
 typeMissMatchWithDeclaration :: [JavaPackage]
 typeMissMatchWithDeclaration = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
   where
@@ -1559,7 +1565,7 @@ public class ClassB {
 }
 
 -}
-
+-- mini yes
 importingSelf :: [JavaPackage]
 importingSelf = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
@@ -1613,7 +1619,7 @@ public class ClassA {
 
 
 -}
-
+-- mini yes
 -- Haskell code:
 cantUseImportedFieldWithoutQualification :: [JavaPackage]
 cantUseImportedFieldWithoutQualification = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit] , JavaPackage "PackageC" [classCCompilationUnit]]
@@ -1655,7 +1661,7 @@ public class ClassB {
 }
 
 -}
-
+-- mini no
 breakOutsideOfLoop :: [JavaPackage]
 breakOutsideOfLoop = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
@@ -1682,7 +1688,7 @@ public class ClassB {
 
 
 -}
-
+-- mini yes
 fieldMethodSameName :: [JavaPackage]
 fieldMethodSameName = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
@@ -1721,6 +1727,7 @@ public class ClassB {
 
 
 -}
+-- mini no
 
 overlaoededMethod :: [JavaPackage]
 overlaoededMethod = [JavaPackage "PackageB" [classBCompilationUnit]]
@@ -1766,6 +1773,7 @@ public class ClassB {
 
 
 -}
+-- mini yes
 
 duplicateMethod :: [JavaPackage]
 duplicateMethod = [JavaPackage "PackageB" [classBCompilationUnit]]
@@ -1815,6 +1823,7 @@ public class ClassA {
 
 
 -}
+-- mini no
 
 -- Haskell code:
 creatingAnInstanceOfStaticClass :: [JavaPackage]
@@ -1849,6 +1858,7 @@ public class ClassA {
 }
 
 -}
+-- mini no
 
 mutipleConstructors :: [JavaPackage]
 mutipleConstructors = [JavaPackage {packageName = "PackageA", packageMembers = [compilationUnit] }]
@@ -1916,7 +1926,7 @@ public class ClassA {
 
 
 -}
-
+-- mini no
 -- Haskell code:
 mutipleConstructorsUsage :: [JavaPackage]
 mutipleConstructorsUsage = [JavaPackage "PackageB" [classBCompilationUnit] , JavaPackage "PackageA" [classACompilationUnit]]
@@ -1969,6 +1979,7 @@ public class ClassA {
 
 
 -}
+-- mini no
 
 -- Haskell code:
 tryingToUseDefaultConstructorWhenNotAllowed :: [JavaPackage]
@@ -2017,6 +2028,7 @@ public class ClassA {
 
 
 -}
+-- mini no
 
 -- Haskell code:
 correctUseOfDefaultConstructor :: [JavaPackage]
@@ -2062,6 +2074,7 @@ public class ClassA {
 
 -}
 
+-- mini yes
 
 -- Haskell code:
 importedClassAsMethodParameter :: [JavaPackage]

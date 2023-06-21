@@ -44,28 +44,20 @@ example = [JavaPackage "PackageB" [CompilationUnit [] classB]]
                 }
 
 
-toplevelandimportclasssamename_no_test = [JavaPackage "javas.util" [ca, cb]]
+arrayCorrect :: [JavaPackage]
+arrayCorrect = [JavaPackage "PackageB" [classBCompilationUnit]]
   where
-    ca :: CompilationUnit
-    ca =
+    classBCompilationUnit :: CompilationUnit
+    classBCompilationUnit =
       CompilationUnit
         []
         (ClassDeclaration
-            "List"
-            []
-            False
-            []
+          "ClassB"
+          [ FieldDeclaration (ArrayType CharType) "b" (Just (NewEmptyArrayE (LiteralE $ IntLiteral 12) CharType))
+          ]
+          False
+           []
         )
-    cb =
-      CompilationUnit
-        [ImportDeclaration "javas.util" "List"]
-        (ClassDeclaration
-            "List"
-            []
-            False
-            []
-        )
-
 main :: IO ()
 main = do
-    print $ runTC toplevelandimportclasssamename_no_test
+    print $ runTC arrayCorrect

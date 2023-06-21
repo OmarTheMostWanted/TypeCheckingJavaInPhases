@@ -290,9 +290,3 @@ class_in_unnamed_package_invisible_in_compilation_units_of_toplevel_package_no_t
             []
         )
 
-
--- [p/q/A.java]
--- package p.q;
--- public class A {
---     public A a;
--- }

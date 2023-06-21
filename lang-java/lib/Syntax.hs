@@ -55,6 +55,9 @@ data Expression
     | NewE String [Expression]       -- Represents object creation expressions with a class name and argument expressions
     | FieldAccessE Expression String -- Represents field access expressions with an expression to select the class to be queried and a field name
     | MethodInvocationE Expression String [Expression] -- Represents method invocation expressions with an expression to select the object or static class to call the method on, method name, and argument expressions
+    | NewArrayE [Expression] -- elements
+    | NewEmptyArrayE Expression JavaType -- length and elements
+    | ArrayElementAccessE Expression Expression -- array refrece and index
     deriving (Eq, Show)
 
 

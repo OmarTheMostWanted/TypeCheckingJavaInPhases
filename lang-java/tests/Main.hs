@@ -19,6 +19,7 @@ import Free.Scope (Graph)
 import MinistatixTests.Classes
 import MinistatixTests.Expressions
 import MinistatixTests.Packages
+import NotInMinistatix.Expressions
 import GHC.IO.Exception (assertError)
 
 runFullTCTest :: [JavaPackage] -> IO ((), Graph Label Decl) 
@@ -27,7 +28,7 @@ runFullTCTest = either assertFailure return . runTC
 runFullTCTFail :: [JavaPackage] -> IO String
 runFullTCTFail e = either return (const $ assertFailure "Expected exception, got none") $ runTC e
 
-
+-- mini yes
 testSimpleFull :: IO ()
 testSimpleFull = do
   t <- runFullTCTest [javaPackage, javaPackage2]
@@ -41,7 +42,7 @@ testSimpleFull = do
           False []]
     javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True []]
 
-
+-- mini yes
 testSimpleFullWithMethodBody :: IO ()
 testSimpleFullWithMethodBody = do
   t <- runFullTCTest [javaPackage , javaPackage2]
@@ -55,7 +56,7 @@ testSimpleFullWithMethodBody = do
           False []]
     javaPackage2 = JavaPackage "MyPackage2" [CompilationUnit [] $ ClassDeclaration "MyClass2" [FieldDeclaration IntType "myField2" Nothing, MethodDeclaration Nothing "myMethod2" [] []] True [] ]
 
-
+-- mini yes
 testUsingImport :: IO ()
 testUsingImport = do
   t <- runFullTCTest [javaPackage, javaPackage2]
@@ -463,8 +464,8 @@ unqualified_reference_to_missing_class_no_testExpectedFailTest = do
   t <- runFullTCTFail unqualified_reference_to_missing_class_no_test
   assertEqual "Expected error: " "Type B doesn't exist in scope" t
 
-failtTest ::  IO ()
-failtTest = do
+class_in_unnamed_package_invisible_in_compilation_units_of_toplevel_package_no_testfailtTest ::  IO ()
+class_in_unnamed_package_invisible_in_compilation_units_of_toplevel_package_no_testfailtTest = do
   runFullTCTFail class_in_unnamed_package_invisible_in_compilation_units_of_toplevel_package_no_test
   return ()
 -- ExpectedFailTest ::  IO ()
@@ -481,6 +482,26 @@ failtTest = do
 -- ExpectedFailTest = do
 --   t <- runFullTCTFail 
 --   assertEqual "Expected error: " t
+
+-- ========================================
+
+arrayCorrectestTest :: IO ()
+arrayCorrectestTest = do
+  t <- runFullTCTest arrayCorrect
+  t <- runFullTCTest arrayCorrect2
+  t <- runFullTCTest arrayCorrectAccess
+  return $ fst t
+
+
+arrayWrongTypeExpectedFailTest ::  IO ()
+arrayWrongTypeExpectedFailTest = do
+  t <- runFullTCTFail arrayWrongType
+  assertEqual "Expected error: " "Array element types don't match" t
+
+arrayWrongType2ExpectedFailTest ::  IO ()
+arrayWrongType2ExpectedFailTest = do
+  t <- runFullTCTFail arrayWrongType2
+  assertEqual "Expected error: " "Type mismatch while initializing field b. Expected: ArrayType CharType but got ArrayType StringType" t
 
 
 
@@ -508,9 +529,14 @@ ministatixTests = TestList [
   "single_file_import_not_visible_in_other_compilation_units_of_same_package_no_test" ~: single_file_import_not_visible_in_other_compilation_units_of_same_package_no_testExpectedFailTest,
   "single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_testExpectedFailTest" ~: single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_testExpectedFailTest, -- false error
   "unqualified_reference_to_missing_class_no_testExpectedFailTest" ~: unqualified_reference_to_missing_class_no_testExpectedFailTest,
-  "failtTest" ~: failtTest
+  "class_in_unnamed_package_invisible_in_compilation_units_of_toplevel_package_no_testfailtTest" ~: class_in_unnamed_package_invisible_in_compilation_units_of_toplevel_package_no_testfailtTest,
 
-  
+
+
+  "arrayCorrectestTest" ~: arrayCorrectestTest,
+  "arrayWrongTypeExpectedFailTest" ~: arrayWrongTypeExpectedFailTest,
+  "arrayWrongType2ExpectedFailTest" ~: arrayWrongType2ExpectedFailTest
+
   ]
 
 main :: IO ()
