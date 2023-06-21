@@ -16,7 +16,7 @@ import Syntax
 -- public class q {}
 
 
-class_and_nested_package_with_same_name_no_test = [JavaPackage "p" [ca] , JavaPackage "p.r" [cb]]
+class_and_nested_package_with_same_name_no_test = [JavaPackageN "p" [JavaPackage "r" [cb] ] [ca]]
   where
     ca :: CompilationUnit
     ca =
@@ -44,8 +44,7 @@ class_and_nested_package_with_same_name_no_test = [JavaPackage "p" [ca] , JavaPa
 -- public class A {
 --     public A a;
 -- }
-class_visible_in_own_compilation_unit_of_nested_package_yes_test :: [JavaPackage]
-class_visible_in_own_compilation_unit_of_nested_package_yes_test = [JavaPackage "p.q" [ca]]
+class_visible_in_own_compilation_unit_of_nested_package_yes_test = [JavaPackageN "p" [JavaPackage "q" [ca]] []]
   where
     ca :: CompilationUnit
     ca =
@@ -64,7 +63,7 @@ class_visible_in_own_compilation_unit_of_nested_package_yes_test = [JavaPackage 
 -- public class A {
 --     public A a;
 -- }
-class_visible_in_own_ompilation_unit_of_toplevel_package_yes_test = [JavaPackage "p" [ca]]
+class_visible_in_own_ompilation_unit_of_toplevel_package_yes_test = [JavaPackageN "p" [] [ca]]
   where
     ca :: CompilationUnit
     ca =
@@ -83,7 +82,7 @@ class_visible_in_own_ompilation_unit_of_toplevel_package_yes_test = [JavaPackage
 
 -- [unnamed-2/A.java]
 -- public class A {}
-classes_with_same_name_in_unnamed_package_no_test = [JavaPackage "defualt" [ca , ca2]]
+classes_with_same_name_in_unnamed_package_no_test = [JavaPackage "" [ca , ca2]]
   where
     ca :: CompilationUnit
     ca =
@@ -123,7 +122,7 @@ classes_with_same_name_in_unnamed_package_no_test = [JavaPackage "defualt" [ca ,
 -- public class C {}
 
 
-single_file_import_not_visible_in_other_compilation_units_of_same_package_no_test = [JavaPackage "p" [ca , cb] , JavaPackage "q" [cc]]
+single_file_import_not_visible_in_other_compilation_units_of_same_package_no_test = [JavaPackageN "p" [] [ca , cb] , JavaPackageN "q" [] [cc]]
   where
     ca :: CompilationUnit
     ca =
@@ -171,7 +170,7 @@ single_file_import_not_visible_in_other_compilation_units_of_same_package_no_tes
 -- public class C {}
 
 
-single_type_import_from_toplevel_package_yes_test = [JavaPackage "p" [ca] , JavaPackage "q" [cb , cc]]
+single_type_import_from_toplevel_package_yes_test = [JavaPackageN "p" [] [ca] , JavaPackageN "q" [] [cb , cc]]
   where
     ca :: CompilationUnit
     ca =
@@ -215,7 +214,7 @@ single_type_import_from_toplevel_package_yes_test = [JavaPackage "p" [ca] , Java
 -- }
 
 
-single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_test = [JavaPackage "p" [ca] , JavaPackage "q" [cb]]
+single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_test = [JavaPackageN "p" [] [ca] , JavaPackageN "q" [] [cb]]
   where
     ca :: CompilationUnit
     ca =
@@ -244,7 +243,7 @@ single_type_import_with_same_name_as_class_in_compilation_unit_not_allowed_no_te
 --     public B b;
 -- }
 
-unqualified_reference_to_missing_class_no_test = [JavaPackage "p" [ca]]
+unqualified_reference_to_missing_class_no_test = [JavaPackageN "p" [] [ca]]
   where
     ca :: CompilationUnit
     ca =
@@ -268,7 +267,7 @@ unqualified_reference_to_missing_class_no_test = [JavaPackage "p" [ca]]
 --     public A a;
 -- }
 
-class_in_unnamed_package_invisible_in_compilation_units_of_toplevel_package_no_test = [JavaPackage "p" [ca] , JavaPackage "q" [cb]]
+class_in_unnamed_package_invisible_in_compilation_units_of_toplevel_package_no_test = [JavaPackageN "p" [] [ca] , JavaPackageN "q" [] [cb]]
   where
     ca :: CompilationUnit
     ca =

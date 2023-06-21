@@ -75,9 +75,10 @@ data Statement
 
 -- Represents a Java package that can be imported
 data JavaPackage = JavaPackage {
-  packageName :: String,               -- The name of the Java package
-  packageMembers :: [CompilationUnit]  -- The list of compilation units (Java files) represting classes in the package
-}
+    packageName :: String,               -- The name of the Java package
+    packageMembers :: [CompilationUnit]  -- The list of compilation units (Java files) represting classes in the package
+  }
+  | JavaPackageN String [JavaPackage] [CompilationUnit]
 
 -- Data type for Compilation Unit represents a single Java file containing imports and a single public class
 data CompilationUnit = CompilationUnit [ImportDeclaration] ClassDeclaration

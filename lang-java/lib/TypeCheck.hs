@@ -150,6 +150,26 @@ discoverPackages (JavaPackage n cus) programScope = do
   edge packageScope P programScope
   mapM_ (`discoverPackageClasses` packageScope) cus
 
+discoverPackages (JavaPackageN n nested cus) programScope = do
+  packageScope <- new
+  trace ("Adding Package Declaration " ++ show (PackageDecl n packageScope) ++ " to scope " ++ show programScope) sink programScope M $ PackageDecl n packageScope
+  edge packageScope P programScope
+  mapM_ (`discoverPackageClasses` packageScope) cus
+  trace ("Discovering nested package in " ++ n) mapM_ (`discoverNestedPackages` (n , packageScope )) nested
+
+discoverNestedPackages :: (Functor f, Error String < f, Scope Sc Label Decl < f) => JavaPackage  -> (String , Sc) -> Free f ()
+discoverNestedPackages (JavaPackageN n nested cus) (parentP , scope) = do
+  nestedScope <- new
+  sink scope M $ PackageDecl (parentP ++ "." ++ n) nestedScope
+  edge nestedScope P scope
+  mapM_ (`discoverPackageClasses` nestedScope) cus
+  mapM_ (`discoverNestedPackages` (parentP ++ "." ++ n , nestedScope)) nested
+
+discoverNestedPackages (JavaPackage n cus) (parentP , scope) = do
+  nestedScope <- new
+  sink scope M $ PackageDecl (parentP ++ "." ++ n) nestedScope
+  edge nestedScope P scope
+  mapM_ (`discoverPackageClasses` nestedScope) cus
 
 -- Phase 1: Step 2: Discover all classes in a package
 discoverPackageClasses :: (Functor f, Error String < f, Scope Sc Label Decl < f) => CompilationUnit -> Sc -> Free f ()
@@ -171,6 +191,16 @@ tcPackage (JavaPackage n cu) programScope = do
     [] -> err $ "Package " ++ n ++ " not found"
     [PackageDecl _ packageScope] -> do
       mapM_ (`tcClassMemberDeclarations` packageScope) cu
+      -- tcMemebreValues cu packageScope
+    _ -> err $ "Ambiguity in package name " ++ n
+
+tcPackage (JavaPackageN n nested cu) programScope = do
+  packageDecl <- query programScope packageRe pShortest (matchPackageDecl n)
+  case packageDecl of
+    [] -> err $ "Package " ++ n ++ " not found"
+    [PackageDecl _ packageScope] -> do
+      mapM_ (`tcClassMemberDeclarations` packageScope) cu
+      mapM_ (`tcPackage` packageScope) nested
       -- tcMemebreValues cu packageScope
     _ -> err $ "Ambiguity in package name " ++ n
 
@@ -312,6 +342,16 @@ tcValues (JavaPackage name cu) programScope = do
     [PackageDecl _ packageScope] -> do
       mapM_ (`tcMemebreValues` packageScope) cu
     _ -> err $ "In phase 3, more than one package with name " ++ name ++ " was found matches: " ++  show packageD
+
+tcValues (JavaPackageN name nested cu) programScope = do
+  packageD <- query programScope (Atom M) pShortest (matchPackageDecl name)
+  case packageD of
+    [] -> err $ "In phase 3, package " ++ name ++ " was not found"
+    [PackageDecl _ packageScope] -> do
+      mapM_ (`tcMemebreValues` packageScope) cu
+      mapM_ (`tcValues` packageScope) nested
+    _ -> err $ "In phase 3, more than one package with name " ++ name ++ " was found matches: " ++  show packageD
+
 
 
 -- Phase 3: Step 1.0: Per clas Type check right hand side of fields along with method bodies and cosntructor body
@@ -709,7 +749,7 @@ tcExpr (ArrayElementAccessE arr i) scope = do
     (ArrayType t) -> do
       index <- tcExpr i scope
       case index of
-        IntType -> return (t)
+        IntType -> return t
         _ -> err $ "Array index was not a number: " ++ show index
     _ -> err $ show arr ++ " is not an array"
 
